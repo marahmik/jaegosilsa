@@ -86,9 +86,10 @@ test('passReliable is false when an operator can swallow the failure', () => {
 
 // --- #48-3: project registry docs/harness/verify-commands.json (literal leading-token prefixes)
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
-import { spawnSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { skipUnless, mkfifoSync } from './helpers/capabilities.mjs';
 
 function withRegistry(content, fn) {
   const dir = mkdtempSync(join(tmpdir(), 'bp-registry-'));
@@ -138,7 +139,7 @@ test('registry: launcher-only prefixes (bare, path-qualified, cased, launcher + 
   });
 });
 
-test('registry: a FIFO or directory at the registry path never hangs the classifier — built-ins still apply; a non-regular file is ignored even when readable', () => {
+test('registry: JSON arriving through a FIFO at the registry path is ignored (not a regular file)', { skip: skipUnless('fifo') }, () => {
   // A FIFO WITH a writer delivers valid JSON to a non-blocking reader; the content stays out
   // twice over — isFile() rejects it, and the fstat-sized read of a FIFO (size 0) reads nothing.
   const fdir = mkdtempSync(join(tmpdir(), 'bp-registry-'));
@@ -146,30 +147,36 @@ test('registry: a FIFO or directory at the registry path never hangs the classif
   try {
     mkdirSync(join(fdir, 'docs', 'harness'), { recursive: true });
     const fifo = join(fdir, 'docs', 'harness', 'verify-commands.json');
-    if (spawnSync('mkfifo', [fifo]).status === 0) {
-      writer = spawn('sh', ['-c', `printf '%s' '{"test":["my-bench"]}' > "${fifo}"`], { stdio: 'ignore' });
-      const until = Date.now() + 1500;
-      let seen = false;
-      while (Date.now() < until && !seen) { seen = classifyVerification('my-bench', fdir).isVerification; if (!seen) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); }
-      assert.equal(seen, false, 'JSON arriving through a FIFO must be ignored (not a regular file)');
-    }
+    mkfifoSync(fifo);
+    writer = spawn('sh', ['-c', 'printf \'%s\' \'{"test":["my-bench"]}\' > "$1"', 'sh', fifo], { stdio: 'ignore' });
+    const until = Date.now() + 1500;
+    let seen = false;
+    while (Date.now() < until && !seen) { seen = classifyVerification('my-bench', fdir).isVerification; if (!seen) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); }
+    assert.equal(seen, false, 'JSON arriving through a FIFO must be ignored (not a regular file)');
   } finally { writer?.kill('SIGKILL'); rmSync(fdir, { recursive: true, force: true }); }
+});
+
+test('registry: a symlink to a regular file at the registry path is honored', { skip: skipUnless('symlink') }, () => {
   withRegistry(null, (dir) => {
     writeFileSync(join(dir, 'registry.json'), JSON.stringify({ test: ['my-bench'] }));
     symlinkSync(join(dir, 'registry.json'), join(dir, 'docs', 'harness', 'verify-commands.json'));
     assert.equal(classifyVerification('my-bench', dir).type, 'test', 'symlink to a regular file is honored');
   });
+});
+
+test('registry: a writer-less FIFO at the registry path never hangs the classifier — built-ins still apply', { skip: skipUnless('fifo') }, () => {
   const dir = mkdtempSync(join(tmpdir(), 'bp-registry-'));
   try {
     mkdirSync(join(dir, 'docs', 'harness'), { recursive: true });
-    const fifo = join(dir, 'docs', 'harness', 'verify-commands.json');
-    const r = spawnSync('mkfifo', [fifo]);
-    if (r.status !== 0) return; // no mkfifo: nothing to pin here
+    mkfifoSync(join(dir, 'docs', 'harness', 'verify-commands.json'));
     const started = Date.now();
     assert.equal(classifyVerification('npm test', dir).type, 'test');
     assert.equal(classifyVerification('bash x', dir).isVerification, false);
     assert.ok(Date.now() - started < 1000, 'a writer-less FIFO must not block');
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('registry: a directory at the registry path is ignored — built-ins still apply', () => {
   withRegistry(null, (dir) => {
     mkdirSync(join(dir, 'docs', 'harness', 'verify-commands.json'));
     assert.equal(classifyVerification('npm test', dir).type, 'test');

@@ -59,7 +59,7 @@
 //   - Past MAX_DEPTH of nested `bash -c`, detection FAILS CLOSED (treats it as a commit).
 
 import { realpathSync, statSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import path, { dirname, join, resolve, sep } from 'path';
 
 const MAX_DEPTH = 5;
 
@@ -831,16 +831,30 @@ const UNEXPANDED = /[$`*?[{]|^~/;
 // collapse `link/..` to the link's own parent first — and so does Node's JS `realpathSync`,
 // which normalizes before walking; only the libc-backed `.native` follows the link first). A
 // component that does not exist stays lexical — readHead fails there anyway.
+// Absolute paths are recognised by the platform's `path` (`C:\x`, `C:/x`, `\\srv\share\x` on
+// Windows; only `/x` on POSIX — `C:\x` is a relative name there) and walked from their root
+// (#93). `\` splits components only where the platform treats it as a separator: a POSIX file
+// name may legitimately contain one.
+const SEPARATORS = sep === '\\' ? /[\\/]/ : /\//;
 function physical(p) {
   try { return realpathSync.native(p); } catch { return p; }
 }
 function chdir(from, v) {
-  let cur = v.startsWith('/') ? '/' : physical(from);
-  for (const part of v.split('/')) {
+  const { root } = path.parse(v);                  // '' when relative; '/', 'C:\', '\\srv\share\' when absolute ('C:' for a drive-relative `C:foo` — unmodelled, walked lexically)
+  let cur = root || physical(from);
+  for (const part of v.slice(root.length).split(SEPARATORS)) {
     if (part === '' || part === '.') continue;
     cur = part === '..' ? dirname(cur) : physical(join(cur, part));
   }
   return cur;
+}
+
+/** `target` as an absolute path: itself when `p.isAbsolute` says so, else spelled under `base`
+ *  with the platform separator — NOT normalized (`link/..` is resolved physically by repo-root
+ *  later, never collapsed lexically first — review r2 X3). `p` is injectable (`path.win32` /
+ *  `path.posix`) so the Windows rule is unit-testable on any host (#93). */
+export function absolutize(target, base, p = path) {
+  return p.isAbsolute(target) ? target : `${base}${p.sep}${target}`;
 }
 
 // Walk ONE git invocation's global options from `baseDir` the way git does: `-C` chains (each
@@ -1106,13 +1120,14 @@ function cdTarget(cwd, args) {
   try { return statSync(dir).isDirectory() ? dir : null; } catch { return null; }
 }
 
-// Attributed as spelled: `cwd/p` is NOT normalized here, so a `link/..` inside `p` is resolved
-// component-wise (physically) by repo-root later, not collapsed lexically first (review r2 X3).
+// Attributed as spelled (absolutize): `cwd/p` is NOT normalized here, so a `link/..` inside `p`
+// is resolved component-wise (physically) by repo-root later, not collapsed lexically first
+// (review r2 X3).
 function addFiles(out, paths, cwd) {
   for (const p of paths) {
     if (UNEXPANDED.test(p)) continue;
-    if (p.startsWith('/')) out.files.push(p);
-    else if (cwd !== null) out.files.push(`${cwd}/${p}`);
+    if (path.isAbsolute(p)) out.files.push(p);
+    else if (cwd !== null) out.files.push(absolutize(p, cwd));
   }
 }
 

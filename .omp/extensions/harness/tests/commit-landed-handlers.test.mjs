@@ -13,6 +13,7 @@ import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync, mkdirSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadHarness, ctxFor } from './helpers/harness-handlers.mjs';
+import { skipUnless } from './helpers/capabilities.mjs';
 
 const { handlers } = await loadHarness();
 const toolCall = handlers.tool_call[0];
@@ -299,7 +300,7 @@ test('(s) snapshot lines expired under us while an OLDER reachable commit line s
 });
 
 
-test('(p) bash cwd input through a symlink with .. (cwd: A/link/..) targets the physical repo', async () => {
+test('(p) bash cwd input through a symlink with .. (cwd: A/link/..) targets the physical repo', { skip: skipUnless('symlink') }, async () => {
   await withRoot(async (root) => {
     const a = repo(root, 'A');
     const b = repo(root, 'B');

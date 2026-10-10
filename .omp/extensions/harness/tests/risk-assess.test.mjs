@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { assessRisk, isHighRiskFile } from '../gates/risk-assess.mjs';
 import { parseCommitForm } from '../gates/git-commit-detect.mjs';
+import { skipUnless } from './helpers/capabilities.mjs';
 
 // --- Unit: isHighRiskFile (pure, no git) ---
 
@@ -493,7 +494,7 @@ test('bootstrap (-a form): a staged deletion of harness-meta.json is scored, not
 //                  follows it happily); -a form, index also holds the link.
 //   HEAD guard   — HEAD's entry is a 120000 symlink whose link text is the template JSON; the
 //                  commit replaces it with a regular bootstrapped file (index gets a T/M entry).
-test('bootstrap (index guard): a 120000 index entry with JSON link text never opens the window', () => {
+test('bootstrap (index guard): a 120000 index entry with JSON link text never opens the window', { skip: skipUnless('symlink') }, () => {
   withTemplateClone(0, ({ dir, git, cleanup }) => {
     cleanup();
     unlinkSync(join(dir, META));
@@ -507,7 +508,7 @@ test('bootstrap (index guard): a 120000 index entry with JSON link text never op
   });
 });
 
-test('bootstrap (lstat guard, -a form): a worktree symlink to a real bootstrapped JSON file never opens the window', () => {
+test('bootstrap (lstat guard, -a form): a worktree symlink to a real bootstrapped JSON file never opens the window', { skip: skipUnless('symlink') }, () => {
   withTemplateClone(0, ({ dir, git, cleanup }) => {
     cleanup();
     unlinkSync(join(dir, META));
@@ -521,7 +522,7 @@ test('bootstrap (lstat guard, -a form): a worktree symlink to a real bootstrappe
   });
 });
 
-test('bootstrap (HEAD guard): a 120000 harness-meta.json AT HEAD is not a template copy', () => {
+test('bootstrap (HEAD guard): a 120000 harness-meta.json AT HEAD is not a template copy', { skip: skipUnless('symlink') }, () => {
   const dir = makeRepo({ ...TEMPLATE });
   const g = (args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf-8' }); if (r.status !== 0) throw new Error(r.stderr); return r.stdout; };
   try {

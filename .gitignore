@@ -25,3 +25,7 @@ artifacts/**
 !artifacts/**/
 !artifacts/README.md
 !artifacts/**/README.md
+
+# Application dependencies and production build
+node_modules/
+dist/

@@ -16,14 +16,16 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, appendFileSync, symlinkSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync, appendFileSync, symlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, posix, win32 } from 'node:path';
 import { repoIdentity, repoToplevel } from '../gates/repo-root.mjs';
-import { shellWriteTargets, isGitPush } from '../gates/git-commit-detect.mjs';
+import { absolutize, shellWriteTargets, isGitPush } from '../gates/git-commit-detect.mjs';
 import { crossRepoBashVerdict, crossRepoMutationVerdict } from '../gates/cross-repo.mjs';
 import { loadHarness, ctxFor } from './helpers/harness-handlers.mjs';
+import { mkdtempReal } from './helpers/real-tmpdir.mjs';
+import { hasCapability, skipUnless } from './helpers/capabilities.mjs';
 
 for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) delete process.env[k];
 Object.assign(process.env, { HOME: tmpdir(), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -42,7 +44,7 @@ function repo(root, name, files) {
 
 /** session + worktree + external(discipline) + vault(none), torn down after `fn`. */
 async function withFixture(fn) {
-  const root = mkdtempSync(join(tmpdir(), 'xrepo-'));
+  const root = mkdtempReal('xrepo-');
   try {
     const session = repo(root, 'session', { 'AGENTS.md': '# session rules\n', 'a.txt': 'a\n' });
     const external = repo(root, 'external', { 'AGENTS.md': '# external rules\n', 'b.txt': 'b\n' });
@@ -78,13 +80,13 @@ test('repo-root: a linked worktree shares the session identity; another repo doe
 // `cd` is followed only into a directory that EXISTS (the shell stays put otherwise), so these
 // run on a real tree: <root>/base/repo (B), <root>/base/other, <root>/ext, B/sub.
 function withTree(fn) {
-  const root = mkdtempSync(join(tmpdir(), 'xscan-'));
+  const root = mkdtempReal('xscan-');
   try {
     const B = join(root, 'base', 'repo');
     for (const d of [join(B, 'sub'), join(root, 'base', 'other'), join(root, 'ext')]) mkdirSync(d, { recursive: true });
     writeFileSync(join(B, 'sub', 'x.txt'), 'x\n');
     mkdirSync(join(root, 'ext', 'inner'));
-    symlinkSync(join(root, 'ext', 'inner'), join(B, 'link'));          // B/link -> ext/inner
+    if (hasCapability('symlink')) symlinkSync(join(root, 'ext', 'inner'), join(B, 'link'));   // B/link -> ext/inner (only the symlink-gated test below reads it)
     return fn({ root, B, other: join(root, 'base', 'other'), ext: join(root, 'ext') });
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -131,8 +133,6 @@ test('shellWriteTargets: git commit/push targets follow -C chains, one literal c
     assert.equal(shellWriteTargets('echo $(date) && git commit -m x', B).unknown, null, 'a substitution outside a cd does not move the cwd');
     assert.deepEqual(gitOf('echo $(date) && git commit -m x'), [{ dir: B, verb: 'commit' }]);
     assert.deepEqual(gitOf(`git -C ${ext} --attr-source HEAD commit`), [{ dir: ext, verb: 'commit' }], 'a known value-taking global is walked (r2 X2)');
-    assert.deepEqual(gitOf(`cd ${B}/link/.. && git push`), [{ dir: B, verb: 'push' }], 'cd is logical like bash: link/.. is the link\'s parent');
-    assert.deepEqual(gitOf(`cd -P ${B}/link/.. && git push`), [{ dir: ext, verb: 'push' }], 'cd -P is physical: link/.. is the TARGET\'s parent (r3 C1)');
     assert.equal(shellWriteTargets(`git --git-dir=${ext}/.git show-ref && git -C "$R" --version`, B).unknown, null, 'read verbs and terminal options beside a redirect global are not findings (r3 C3)');
     assert.ok(shellWriteTargets(`git -C ${ext} --shallow-file x push`, B).git.some((g) => g.verb === 'push'), '--shallow-file takes a value (r3 N7)');
     assert.deepEqual(gitOf(`cd ${ext} 2>/dev/null && git commit -m x`), [{ dir: ext, verb: 'commit' }], 'a redirection on the cd segment is not an operand (r4-1)');
@@ -140,6 +140,14 @@ test('shellWriteTargets: git commit/push targets follow -C chains, one literal c
     assert.deepEqual(gitOf(`git -C ${ext} commit --help`), [], '`git commit --help` prints and exits (r4-8)');
     assert.equal(shellWriteTargets('git -c alias.c=commit --version', B).unknown, null);
     assert.ok(isGitPush('git -C /x push') && !isGitPush('git log --grep push'));
+  });
+});
+
+test('shellWriteTargets: `cd link/..` is logical, `cd -P link/..` is physical', { skip: skipUnless('symlink') }, () => {
+  withTree(({ B, ext }) => {
+    const gitOf = (cmd) => shellWriteTargets(cmd, B).git;
+    assert.deepEqual(gitOf(`cd ${B}/link/.. && git push`), [{ dir: B, verb: 'push' }], 'cd is logical like bash: link/.. is the link\'s parent');
+    assert.deepEqual(gitOf(`cd -P ${B}/link/.. && git push`), [{ dir: ext, verb: 'push' }], 'cd -P is physical: link/.. is the TARGET\'s parent (r3 C1)');
   });
 });
 
@@ -209,7 +217,7 @@ test('① a mutation into another discipline-bearing repo is blocked until its A
   });
 });
 
-test('① symlinks: a link INTO another repo\'s subtree attributes to that repo; a link TO a repo is read through the link (C1)', async () => {
+test('① symlinks: a link INTO another repo\'s subtree attributes to that repo; a link TO a repo is read through the link (C1)', { skip: skipUnless('symlink') }, async () => {
   await withFixture(({ root, session, external, markRead }) => {
     mkdirSync(join(external, 'src'));
     symlinkSync(join(external, 'src'), join(session, 'vendor'));                 // session/vendor -> external/src (npm link shape)
@@ -294,4 +302,19 @@ test('wiring: tool_call blocks an edit/write and a commit into another disciplin
     const commitAfter = await toolCall({ toolName: 'bash', toolCallId: 'b3', input: { command: `git -C ${external} commit -m x` } }, ctx);
     assert.equal(commitAfter?.block, true, 'the commit stays blocked after the read');
   });
+});
+
+// ① target attribution is `path.isAbsolute`, not `startsWith('/')` (#93): a Windows absolute
+// path must not be glued under the session cwd. Pure — the platform `path` is injected so the
+// win32 rule runs on any host; nothing is normalized (`link/..` stays for repo-root's physical walk).
+test('absolutize: Windows-style absolute paths stay absolute, relatives join with the platform separator, nothing is collapsed', () => {
+  for (const abs of ['C:\\repo\\x.ts', 'C:/repo/x.ts', '\\\\srv\\share\\x.ts', 'c:\\link\\..\\x.ts']) {
+    assert.equal(absolutize(abs, 'C:\\session', win32), abs, `${abs} is absolute on win32 (was treated as relative)`);
+  }
+  assert.equal(absolutize('src\\x.ts', 'C:\\session', win32), 'C:\\session\\src\\x.ts');
+  assert.equal(absolutize('link/../x.ts', 'C:\\session', win32), 'C:\\session\\link/../x.ts', 'not normalized on win32 either');
+  assert.equal(absolutize('C:\\repo\\x.ts', '/session', posix), '/session/C:\\repo\\x.ts', 'on POSIX `C:\\…` is a relative file name');
+  assert.equal(absolutize('/abs/x.ts', '/session', posix), '/abs/x.ts');
+  assert.equal(absolutize('link/../x.ts', '/session', posix), '/session/link/../x.ts', '`link/..` is preserved for the physical walk (r2 X3)');
+  assert.equal(absolutize('link/../x.ts', '/session'), `/session${process.platform === 'win32' ? '\\' : '/'}link/../x.ts`, 'default is the host platform');
 });

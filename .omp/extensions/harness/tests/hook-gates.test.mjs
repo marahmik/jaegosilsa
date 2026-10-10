@@ -72,7 +72,8 @@ test('U2: hook-mode blocks on unchecked acceptance criteria (HARNESS BLOCK contr
 
 // ---- cycle 2: review-gate hook mode (U3 / U3n) ----------------------------------------
 
-import { execSync } from 'node:child_process';
+import { gitDiffSha256 } from './helpers/diff-hash.mjs';
+import { skipUnless, mkfifoSync } from './helpers/capabilities.mjs';
 
 function localToday() {
   const now = new Date();
@@ -113,8 +114,7 @@ test('U3: hook-mode review-gate passes with covering PASS evidence', () => {
   passAcceptance(dir);
   writeFileSync(join(dir, 'big.mjs'), bigCodeFile());
   sh(dir, 'git', ['add', '-A']);
-  const hash = execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8', env: hermeticEnv() })
-    .trim().split(/\s+/)[0];
+  const hash = gitDiffSha256(dir, ['diff', '--cached'], hermeticEnv());
   mkdirSync(join(dir, 'docs', 'reviews'), { recursive: true });
   writeFileSync(
     join(dir, 'docs', 'reviews', `review-${localToday()}-000001.json`),
@@ -154,8 +154,7 @@ test('U3f: evidence naming measured current-gen ids (claude-fable-5) is accepted
   passAcceptance(dir);
   writeFileSync(join(dir, 'big.mjs'), bigCodeFile());
   sh(dir, 'git', ['add', '-A']);
-  const hash = execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8', env: hermeticEnv() })
-    .trim().split(/\s+/)[0];
+  const hash = gitDiffSha256(dir, ['diff', '--cached'], hermeticEnv());
   mkdirSync(join(dir, 'docs', 'reviews'), { recursive: true });
   writeFileSync(
     join(dir, 'docs', 'reviews', `review-${localToday()}-000001.json`),
@@ -169,8 +168,7 @@ test('U3f: evidence naming measured current-gen ids (claude-fable-5) is accepted
 // ---- cycle 3: backpressure + archive-guard hook mode (U5 / U6) -------------------------
 
 function passReview(dir) {
-  const hash = execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8', env: hermeticEnv() })
-    .trim().split(/\s+/)[0];
+  const hash = gitDiffSha256(dir, ['diff', '--cached'], hermeticEnv());
   mkdirSync(join(dir, 'docs', 'reviews'), { recursive: true });
   writeFileSync(
     join(dir, 'docs', 'reviews', `review-${localToday()}-000001.json`),
@@ -342,6 +340,9 @@ test('U9: pathspec commit exposes exactly the partial content to the gates', () 
 
 // Hermetic shim environment (test-attack B-1 recipe): a bin dir with ONLY the named tools,
 // run through env -i — models a human/GUI commit with no session and a bare PATH.
+// The symlinks ARE the fixture here (the bare PATH is built from links to the real tools), so the
+// two tests that use it (I5, I6) are skipped whole when the host cannot create symlinks — nothing
+// capability-independent is hidden in them.
 function shimBin(dir, tools) {
   const bin = join(dir, 'shimbin');
   mkdirSync(bin, { recursive: true });
@@ -367,7 +368,7 @@ function hermeticCommit(dir, bin, msg, extra = {}) {
 }
 
 // I5: human commit (no session, bare PATH with node present) — the hook fires and enforces.
-test('I5: hermetic human commit is enforced by the hook', () => {
+test('I5: hermetic human commit is enforced by the hook', { skip: skipUnless('symlink') }, () => {
   const dir = makeRepo();
   installHook(dir);
   mkdirSync(join(dir, 'docs', 'harness'), { recursive: true });
@@ -384,7 +385,7 @@ test('I5: hermetic human commit is enforced by the hook', () => {
 });
 
 // I6: node absent -> fail closed with guidance; OMP_NODE_BIN restores operation.
-test('I6: node-less PATH fails closed; OMP_NODE_BIN is the escape hatch', () => {
+test('I6: node-less PATH fails closed; OMP_NODE_BIN is the escape hatch', { skip: skipUnless('symlink') }, () => {
   const dir = makeRepo();
   installHook(dir);
   passAcceptance(dir);
@@ -529,8 +530,7 @@ test('U4: hook-mode verdict leaves the worktree and one-shot overrides untouched
   writeFileSync(join(dir, 'big.mjs'), bigCodeFile());
   sh(dir, 'git', ['add', 'big.mjs', 'docs', '.gitignore']); // high-risk code diff without sweeping the fixture harness
   writeFileSync(join(dir, 'docs', 'harness', 'backpressure-skip'), '1\n');
-  const hash = execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8', env: hermeticEnv() })
-    .trim().split(/\s+/)[0];
+  const hash = gitDiffSha256(dir, ['diff', '--cached'], hermeticEnv());
   const skip = join(dir, 'docs', 'harness', 'review-skip');
   writeFileSync(skip, JSON.stringify(['omp-review-override/v1', 'fixture reason', 'tester', hash]));
   const before = spawnSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf-8', env: hermeticEnv() }).stdout;
@@ -727,8 +727,7 @@ function overrideFixture(dir, extra = {}) {
   }
   sh(dir, 'git', ['add', 'big.mjs', 'docs', '.gitignore']);
   writeFileSync(join(dir, 'docs', 'harness', 'backpressure-skip'), '1\n');
-  const hash = execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8', env: hermeticEnv() })
-    .trim().split(/\s+/)[0];
+  const hash = gitDiffSha256(dir, ['diff', '--cached'], hermeticEnv());
   const skip = join(dir, 'docs', 'harness', 'review-skip');
   writeFileSync(skip, JSON.stringify(['omp-review-override/v1', 'fixture reason', 'tester', hash]));
   return skip;
@@ -1023,8 +1022,7 @@ test('P6: a same-tree commit on a different base does not consume the approval',
   writeFileSync(join(dir, 'payload.mjs'), bigCodeFile());
   sh(dir, 'git', ['add', 'a.txt', 'payload.mjs']);
   writeFileSync(join(dir, 'docs', 'harness', 'backpressure-skip'), '1\n');
-  const hashA = execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8', env: hermeticEnv() })
-    .trim().split(/\s+/)[0];
+  const hashA = gitDiffSha256(dir, ['diff', '--cached'], hermeticEnv());
   const skip = join(dir, 'docs', 'harness', 'review-skip');
   writeFileSync(skip, JSON.stringify(['omp-review-override/v1', 'approved at base A', 'tester', hashA]));
   const approve = runHookDispatcher(dir);
@@ -1059,8 +1057,7 @@ test('P7: an amend does not consume the approval of the commit it replaces', () 
   writeFileSync(join(dir, 'extra.mjs'), bigCodeFile());
   sh(dir, 'git', ['add', 'extra.mjs']);
   writeFileSync(join(dir, 'docs', 'harness', 'backpressure-skip'), '1\n');
-  const hash2 = execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8', env: hermeticEnv() })
-    .trim().split(/\s+/)[0];
+  const hash2 = gitDiffSha256(dir, ['diff', '--cached'], hermeticEnv());
   writeFileSync(skip, JSON.stringify(['omp-review-override/v1', 'second attempt', 'tester', hash2]));
   const approve = runHookDispatcher(dir);
   assert.equal(approve.status, 0, `second override should pass: ${approve.stderr}`);
@@ -1366,30 +1363,35 @@ test('E3: a malformed estimate record warns once, allows, and stays on disk', ()
 // BLOCK on a docs-only commit. Both reads now go through the O_NOFOLLOW|O_NONBLOCK + isFile()
 // discipline the evidence files already use: the record is rejected with one warning and stays; a
 // FIFO log just yields fails_since_estimate = 0.
-test('E4: a FIFO or device-symlink record and a FIFO session log never block the commit', () => {
-  const cases = [
-    ['fifo', (p) => sh(dirname(p), 'mkfifo', [p]), /not a regular file/],
-    ['devzero', (p) => symlinkSync('/dev/zero', p), /a symlink/],
-    ['dangling', (p) => symlinkSync('/nonexistent/target', p), /a symlink/],   // existsSync would say "absent"
-  ];
-  for (const [name, plant, why] of cases) {
-    const dir = passingFixture();
-    mkdirSync(join(dir, '.omp', 'harness-state'), { recursive: true });
-    plant(ESTIMATE_PATH(dir));
-    const start = Date.now();
-    const r = spawnSync('git', ['commit', '-q', '-m', `docs: ${name} estimate`], { cwd: dir, encoding: 'utf-8', env: hermeticEnv(), timeout: 15_000 });
-    assert.equal(r.status, 0, `${name}: the commit must land: signal=${r.signal} ${r.stderr}`);
-    assert.ok(Date.now() - start < 5_000, `${name}: the gate must not stall on the record`);
-    const warnings = r.stderr.split('\n').filter((l) => ESTIMATE_WARNING.test(l));
-    assert.equal(warnings.length, 1, `${name}: exactly one warning line, got: ${r.stderr}`);
-    assert.match(warnings[0], why);
-    assert.equal(auditLines(dir).filter((l) => l.includes('estimate_vs_actual')).length, 0, `${name}: nothing recorded`);
-    assert.doesNotThrow(() => lstatSync(ESTIMATE_PATH(dir)), `${name}: the rejected record stays on disk (not consumed)`);
-  }
+function expectRecordRejected(name, plant, why) {
+  const dir = passingFixture();
+  mkdirSync(join(dir, '.omp', 'harness-state'), { recursive: true });
+  plant(ESTIMATE_PATH(dir));
+  const start = Date.now();
+  const r = spawnSync('git', ['commit', '-q', '-m', `docs: ${name} estimate`], { cwd: dir, encoding: 'utf-8', env: hermeticEnv(), timeout: 15_000 });
+  assert.equal(r.status, 0, `${name}: the commit must land: signal=${r.signal} ${r.stderr}`);
+  assert.ok(Date.now() - start < 5_000, `${name}: the gate must not stall on the record`);
+  const warnings = r.stderr.split('\n').filter((l) => ESTIMATE_WARNING.test(l));
+  assert.equal(warnings.length, 1, `${name}: exactly one warning line, got: ${r.stderr}`);
+  assert.match(warnings[0], why);
+  assert.equal(auditLines(dir).filter((l) => l.includes('estimate_vs_actual')).length, 0, `${name}: nothing recorded`);
+  assert.doesNotThrow(() => lstatSync(ESTIMATE_PATH(dir)), `${name}: the rejected record stays on disk (not consumed)`);
+}
+
+test('E4: a FIFO record never blocks the commit', { skip: skipUnless('fifo') }, () => {
+  expectRecordRejected('fifo', mkfifoSync, /not a regular file/);
+});
+
+test('E4: a device-symlink or dangling-symlink record never blocks the commit', { skip: skipUnless('symlink') }, () => {
+  expectRecordRejected('devzero', (p) => symlinkSync('/dev/zero', p), /a symlink/);
+  expectRecordRejected('dangling', (p) => symlinkSync('/nonexistent/target', p), /a symlink/);   // existsSync would say "absent"
+});
+
+test('E4: a valid record beside a FIFO session log is still observed and consumed', { skip: skipUnless('fifo') }, () => {
   // A valid record beside a FIFO session log: compared and consumed, tail read skipped.
   const dir = passingFixture();
   writeEstimate(dir);
-  sh(dir, 'mkfifo', [join(dir, '.omp', 'harness-state', 'session-log.jsonl')]);
+  mkfifoSync(join(dir, '.omp', 'harness-state', 'session-log.jsonl'));
   const start = Date.now();
   const r = spawnSync('git', ['commit', '-q', '-m', 'docs: fifo session log'], { cwd: dir, encoding: 'utf-8', env: hermeticEnv(), timeout: 15_000 });
   assert.equal(r.status, 0, `the commit must land: signal=${r.signal} ${r.stderr}`);
@@ -1405,12 +1407,12 @@ test('E4: a FIFO or device-symlink record and a FIFO session log never block the
 // open past the budget and turned a docs-only ALLOW into a BLOCK. The writes now use 'wx'
 // (O_EXCL): the planted entry fails with EEXIST at once, the outer catch prints one warning, the
 // verdict stays ALLOW, and the record is left unconsumed for the next attempt.
-test('E5: a planted FIFO at the pending-intent path cannot stall the gate', () => {
+test('E5: a planted FIFO at the pending-intent path cannot stall the gate', { skip: skipUnless('fifo') }, () => {
   const dir = passingFixture();
   writeEstimate(dir);
   const pend = join(dir, '.omp', 'harness-state', 'pending-consume');
   mkdirSync(pend, { recursive: true });
-  sh(dir, 'mkfifo', [join(pend, 'append-audit-estimate.json')]);
+  mkfifoSync(join(pend, 'append-audit-estimate.json'));
   chmodSync(pend, 0o555);                      // the dispatcher's clearAttemptState cannot remove it
   try {
     const start = Date.now();

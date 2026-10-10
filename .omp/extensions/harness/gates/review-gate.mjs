@@ -52,6 +52,7 @@
 import { readFileSync, readSync, existsSync, appendFileSync, mkdirSync, opendirSync, unlinkSync, openSync, fstatSync, lstatSync, closeSync, writeFileSync, constants as fsConstants } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
+import { createHash } from 'crypto';
 import { assessRisk } from './risk-assess.mjs';
 import { isGitCommit, parseCommitForm } from './git-commit-detect.mjs';
 import { ESTIMATE_FILE, parseEstimate, countFailsSince, buildEstimateEvent, SESSION_LOG_TAIL_BYTES } from './estimate.mjs';
@@ -255,7 +256,7 @@ function parseOverride(text, currentHash, form) {
     if (dh !== currentHash) problems.push(`diff_hash mismatch: the flag has ${dh} but the effective committed diff is ${currentHash} (the staged/committed content changed since the flag was written)`);
   } else if (dh !== 'UNVERIFIABLE') {
     problems.push(form.verifiable
-      ? 'the effective diff hash could not be computed (git/shasum error) — write "UNVERIFIABLE" as element 3 to acknowledge overriding an unhashable commit'
+      ? 'the effective diff hash could not be computed (git diff failed) — write "UNVERIFIABLE" as element 3 to acknowledge overriding an unhashable commit'
       : 'this commit form is unverifiable (pathspec/--amend/compound line/...) so no hash exists — write "UNVERIFIABLE" as element 3 to acknowledge, or use a standalone plain `git commit`');
   }
   if (problems.length > 0) return { fields: null, problems };
@@ -542,13 +543,19 @@ const inWindow = (f) => (f.startsWith(`review-${today}`) || f.startsWith(`review
 // form (pathspec, --amend, --include/-i, -p, --pathspec-from-file, a commit behind
 // bash -c, >1 commit in one line, or a repo-redirecting global like -C) is UNVERIFIABLE:
 // currentHash stays null and the gate fails closed on high/critical (see the
-// matchedCurrent !== true branch below). execSync runs through a shell, so the pipe
-// needs no `shell` option; both diff commands are constant (no user input on the line).
+// matchedCurrent !== true branch below). The hash is sha256 over the raw stdout BYTES of the
+// diff command (no encoding — a Buffer), which is exactly what `git diff … | shasum -a 256`
+// produces, so sidecars written that way keep matching; hashing in-process removes the
+// `shasum` dependency that made every high/critical commit fail closed on Windows (#93).
+// maxBuffer is lifted because the whole diff is now captured (the pipe used to leave only
+// the digest line in stdout — the cost is O(diff) memory for the gate's lifetime); both diff
+// commands are constant (no user input on the line). A failing git now throws here (→ null →
+// fail-closed); the old `sh` pipe had no pipefail, so a git error hashed EMPTY stdout instead.
 let currentHash = null;
 const diffCmd = form.all ? 'git diff HEAD' : 'git diff --cached';
 if (form.verifiable) {
   try {
-    currentHash = execSync(`${diffCmd} | shasum -a 256`, { cwd, encoding: 'utf-8' }).trim().split(/\s+/)[0];
+    currentHash = createHash('sha256').update(execSync(diffCmd, { cwd, maxBuffer: Infinity })).digest('hex');
   } catch {
     currentHash = null;
   }
@@ -749,7 +756,7 @@ if (matchedCurrent !== true) {
   const detail = currentHash
     ? 'no valid review evidence matches the current changes'
     : (form.verifiable
-        ? 'could not compute the diff hash (git/shasum error)'
+        ? 'could not compute the diff hash (git diff failed)'
         : 'the commit form is unverifiable (an output redirection like `2>&1`, a compound `&&`/`;` line, a pathspec, --amend, or -a with unstaged changes) — run a STANDALONE `git commit` (no trailing `2>&1`/`; …`, no `cd … &&` prefix) so the staged diff can be hashed');
   if (risk.level === 'critical' || risk.level === 'high') {
     log(`BLOCKED: ${detail}`);

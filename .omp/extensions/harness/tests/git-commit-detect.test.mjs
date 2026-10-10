@@ -19,6 +19,7 @@ import { mkdtempSync, mkdirSync, symlinkSync, realpathSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isGitCommit, parseCommitForm, isWipCommit, commitTargetDir } from '../gates/git-commit-detect.mjs';
+import { skipUnless } from './helpers/capabilities.mjs';
 
 // --- Should DETECT (true): a real `git commit` invocation in some segment ---
 const DETECT = [
@@ -385,12 +386,13 @@ test('commitTargetDir: plain commit -> base dir; -C resolves relative to base an
   assert.equal(commitTargetDir('git commit -m x', '/base'), '/base');
   assert.equal(commitTargetDir('git add . && git commit -m x', '/base'), '/base');
   assert.equal(commitTargetDir('git commit -m "fix: cd into dir"', '/base'), '/base', 'a quoted message is one token — no over-match');
-  assert.equal(commitTargetDir('git -C ../other commit -m x', '/base/repo'), '/base/other');
-  assert.equal(commitTargetDir('git -C /abs commit', '/base'), '/abs');
-  assert.equal(commitTargetDir('git -C a -C b commit', '/base'), '/base/a/b');
-  assert.equal(commitTargetDir('git -C "/with space" commit', '/base'), '/with space');
-  assert.equal(commitTargetDir("bash -c 'git -C /r commit -m x'", '/base'), '/r');
-  assert.equal(commitTargetDir('git -C /a commit -m a && git -C /a commit --amend', '/base'), '/a');
+  // The walk builds its result with path.join, so the expectations do too (Windows: '\\base\\other').
+  assert.equal(commitTargetDir('git -C ../other commit -m x', '/base/repo'), join('/base', 'other'));
+  assert.equal(commitTargetDir('git -C /abs commit', '/base'), join('/', 'abs'));
+  assert.equal(commitTargetDir('git -C a -C b commit', '/base'), join('/base', 'a', 'b'));
+  assert.equal(commitTargetDir('git -C "/with space" commit', '/base'), join('/', 'with space'));
+  assert.equal(commitTargetDir("bash -c 'git -C /r commit -m x'", '/base'), join('/', 'r'));
+  assert.equal(commitTargetDir('git -C /a commit -m a && git -C /a commit --amend', '/base'), join('/', 'a'));
 });
 
 test('commitTargetDir: null when the target repo cannot be trusted or there is no commit', () => {
@@ -416,7 +418,7 @@ test('commitTargetDir: null when the target repo cannot be trusted or there is n
   assert.equal(commitTargetDir(undefined, '/base'), null);
 });
 
-test('commitTargetDir: -C chaining follows symlinks like git chdir (physical, not lexical)', () => {
+test('commitTargetDir: -C chaining follows symlinks like git chdir (physical, not lexical)', { skip: skipUnless('symlink') }, () => {
   const root = mkdtempSync(join(tmpdir(), 'ctd-'));
   try {
     mkdirSync(join(root, 'A'));

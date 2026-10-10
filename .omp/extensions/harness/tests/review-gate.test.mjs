@@ -22,10 +22,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync, execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, chmodSync, readFileSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gitDiffSha256 } from './helpers/diff-hash.mjs';
+import { skipUnless, mkfifoSync } from './helpers/capabilities.mjs';
 
 const GATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'gates', 'review-gate.mjs');
 // Match the gate's LOCAL-date naming (it does not use UTC), so sidecar names line up
@@ -69,7 +72,7 @@ function makeRepo(files) {
 
 // The same hash the gate computes from the staged diff.
 function stagedHash(dir) {
-  return execSync('git diff --cached | shasum -a 256', { cwd: dir, encoding: 'utf-8' }).trim().split(/\s+/)[0];
+  return gitDiffSha256(dir, ['diff', '--cached']);
 }
 
 // Write an (untracked) review sidecar/report so it does not perturb the staged diff.
@@ -434,16 +437,40 @@ test('hash mismatch: valid tuple for a DIFFERENT diff -> BLOCK, message teaches 
   });
 });
 
-// --- fail-closed: hash cannot be computed (e.g. shasum missing) ---
+// --- the hash is sha256 of the raw diff bytes, computed in-process (no `shasum`, #93) ---
+
+const HAS_SHASUM = spawnSync('shasum', ['--version'], { encoding: 'utf-8' }).status === 0;
+
+test('diff hash == `git diff --cached | shasum -a 256` (sidecars written that way keep matching)',
+  { skip: HAS_SHASUM ? false : 'shasum is not on PATH on this host (the gate no longer needs it)' }, () => {
+  withRepo(HIGH, (dir) => {
+    // Stage CRLF text and non-UTF-8 bytes too: a future decode/re-encode of the diff output
+    // (an `encoding` option, a text pipe) would diverge from shasum exactly there.
+    writeFileSync(join(dir, 'src', 'crlf.txt'), 'a\r\nb\r\n');
+    writeFileSync(join(dir, 'src', 'raw.bin'), Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x0d, 0x0a, 0xc3]));
+    execSync('git add -A', { cwd: dir });
+    const viaShasum = stagedHash(dir);
+    const viaCrypto = createHash('sha256').update(execSync('git diff --cached', { cwd: dir })).digest('hex');
+    assert.equal(viaCrypto, viaShasum, 'Node crypto over the raw stdout bytes is the shasum value');
+    const r = runGate(dir);                                     // no evidence -> BLOCK, message prints the gate's hash
+    assert.equal(r.status, 2);
+    assert.ok(r.stderr.includes(viaShasum), 'the gate computed the shasum-identical hash');
+  });
+});
+
+// --- fail-closed: hash cannot be computed (git diff fails) ---
 
 test('high risk + diff hash uncomputable -> BLOCK (fail-closed)', () => {
   withRepo(HIGH, (dir) => {
-    // A today sidecar exists, but with shasum stubbed to fail the gate cannot
-    // verify coverage -> unverified -> high/critical must fail closed.
+    // A today sidecar exists, but with the gate's bare hash command stubbed to fail (`git diff
+    // --cached` / `git diff HEAD` — any 2-arg `git diff X`; risk-assess's `--no-renames
+    // --name-only` queries keep working) the gate cannot verify coverage -> unverified ->
+    // high/critical must fail closed.
     writeReview(dir, `review-${TODAY}-120000.json`, evidence('0'.repeat(64)));
     const binDir = mkdtempSync(join(tmpdir(), 'rv-nobin-'));
-    writeFileSync(join(binDir, 'shasum'), '#!/bin/sh\nexit 127\n');
-    chmodSync(join(binDir, 'shasum'), 0o755);
+    const realGit = execSync('command -v git', { encoding: 'utf-8' }).trim();
+    writeFileSync(join(binDir, 'git'), `#!/bin/sh\nif [ "$#" -eq 2 ] && [ "$1" = diff ]; then exit 1; fi\nexec "${realGit}" "$@"\n`);
+    chmodSync(join(binDir, 'git'), 0o755);
     try {
       const r = spawnSync('node', [GATE], {
         input: JSON.stringify({ tool_input: { command: 'git commit -m x' }, session_state: { cwd: dir } }),
@@ -452,6 +479,7 @@ test('high risk + diff hash uncomputable -> BLOCK (fail-closed)', () => {
         env: { ...process.env, PATH: `${binDir}:${process.env.PATH}` },
       });
       assert.equal(r.status, 2);
+      assert.match(r.stderr, /could not compute the diff hash \(git diff failed\)/);
     } finally {
       rmSync(binDir, { recursive: true, force: true });
     }
@@ -495,8 +523,7 @@ function committedRepo() {
 }
 
 // Hash exactly as the gate/reviewer do, for an arbitrary diff selector.
-const diffHash = (dir, sel) =>
-  execSync(`git diff ${sel} | shasum -a 256`, { cwd: dir, encoding: 'utf-8' }).trim().split(/\s+/)[0];
+const diffHash = (dir, sel) => gitDiffSha256(dir, ['diff', ...sel.split(' ')]);
 
 function withCommitted(fn) {
   const { dir, git } = committedRepo();
@@ -770,7 +797,7 @@ test('INTEGRATION: override + plain commit -> gate allows and the REAL committed
     assert.equal(existsSync(skipPath(dir)), false, 'flag consumed');
     // Run the REAL commit the gate just allowed.
     git(['commit', '-q', '-m', 'x']);
-    const committed = execSync('git diff HEAD~1 HEAD | shasum -a 256', { cwd: dir, encoding: 'utf-8' }).trim().split(/\s+/)[0];
+    const committed = gitDiffSha256(dir, ['diff', 'HEAD~1', 'HEAD']);
     assert.equal(committed, approved, 'committed diff is exactly the approved staged diff');
     // The gate's audit append stayed OUT of the commit (it is an unstaged change to the tracked file).
     assert.match(execSync('git status --porcelain', { cwd: dir, encoding: 'utf-8' }), /^ M docs\/harness\/audit\.jsonl$/m);
@@ -788,7 +815,7 @@ test('INTEGRATION: override + git commit -a with UNTRACKED audit/flag -> allowed
     assert.equal(runGate(dir, 'git commit -am x').status, 0, 'no tracked sweep target -> -a override stays consumable');
     assert.equal(existsSync(skipPath(dir)), false, 'flag consumed');
     git(['commit', '-q', '-am', 'x']);
-    const committed = execSync('git diff HEAD~1 HEAD | shasum -a 256', { cwd: dir, encoding: 'utf-8' }).trim().split(/\s+/)[0];
+    const committed = gitDiffSha256(dir, ['diff', 'HEAD~1', 'HEAD']);
     assert.equal(committed, approved, '-a commit captures exactly the approved diff (untracked files not swept)');
     assert.match(readFileSync(auditPath(dir), 'utf-8'), /review_override/);
   });
@@ -1087,41 +1114,52 @@ test('CRITICAL-1: a deeply nested sub-64KiB sidecar must be REJECTED, never cras
   });
 });
 
-test('CRITICAL-2: FIFO / symlink sidecars are rejected without blocking (open is O_NOFOLLOW|O_NONBLOCK)', () => {
+test('CRITICAL-2: a FIFO sidecar is rejected without blocking (open is O_NOFOLLOW|O_NONBLOCK)', { skip: skipUnless('fifo') }, () => {
   withRepo(HIGH, (dir) => {
     const rd = join(dir, 'docs', 'reviews');
     mkdirSync(rd, { recursive: true });
-    // (a) a FIFO named like a sidecar must not hang the gate to the dispatcher's 3s kill.
-    execSync(`mkfifo ${join(rd, `review-${TODAY}-120000.json`)}`);
-    let start = Date.now();
-    let r = runGate(dir);
+    // a FIFO named like a sidecar must not hang the gate to the dispatcher's 3s kill.
+    mkfifoSync(join(rd, `review-${TODAY}-120000.json`));
+    const start = Date.now();
+    const r = runGate(dir);
     assert.equal(r.status, 2, `FIFO must be rejected, got status=${r.status} signal=${r.signal}`);
     assert.ok(Date.now() - start < 5000, 'gate must not block on the FIFO');
     assert.match(r.stderr, /not a regular file/);
-    // (b) symlink -> FIFO (isFile() on a followed stat would chase it; O_NOFOLLOW must not).
-    execSync(`mkfifo ${join(dir, 'target.fifo')}`);
+  });
+});
+
+test('CRITICAL-2: a symlink -> FIFO sidecar is rejected without blocking', { skip: skipUnless('fifo', 'symlink') }, () => {
+  withRepo(HIGH, (dir) => {
+    const rd = join(dir, 'docs', 'reviews');
+    mkdirSync(rd, { recursive: true });
+    // symlink -> FIFO (isFile() on a followed stat would chase it; O_NOFOLLOW must not).
+    mkfifoSync(join(dir, 'target.fifo'));
     symlinkSync(join(dir, 'target.fifo'), join(rd, `review-${TODAY}-120001.json`));
-    start = Date.now();
-    r = runGate(dir);
+    const start = Date.now();
+    const r = runGate(dir);
     assert.equal(r.status, 2);
     assert.ok(Date.now() - start < 5000, 'gate must not block on the symlinked FIFO');
-    // (c) even a symlink to a VALID evidence file is rejected — evidence is a plain regular file.
+  });
+});
+
+test('CRITICAL-2: a symlink to a VALID evidence file is rejected — evidence is a plain regular file', { skip: skipUnless('symlink') }, () => {
+  withRepo(HIGH, (dir) => {
+    const rd = join(dir, 'docs', 'reviews');
+    mkdirSync(rd, { recursive: true });
     const hash = stagedHash(dir);
-    rmSync(join(rd, `review-${TODAY}-120000.json`));
-    rmSync(join(rd, `review-${TODAY}-120001.json`));
     writeFileSync(join(dir, 'valid.json'), evidence(hash));
     symlinkSync(join(dir, 'valid.json'), join(rd, `review-${TODAY}-120002.json`));
-    r = runGate(dir);
+    const r = runGate(dir);
     assert.equal(r.status, 2, 'a symlinked sidecar grants nothing');
     assert.match(r.stderr, /symlink/);
   });
 });
 
-test('CRITICAL-2: a FIFO review-skip flag is rejected without blocking', () => {
+test('CRITICAL-2: a FIFO review-skip flag is rejected without blocking', { skip: skipUnless('fifo') }, () => {
   withRepo(HIGH, (dir) => {
     const hd = join(dir, 'docs', 'harness');
     mkdirSync(hd, { recursive: true });
-    execSync(`mkfifo ${skipPath(dir)}`);
+    mkfifoSync(skipPath(dir));
     const start = Date.now();
     const r = runGate(dir);
     assert.equal(r.status, 2, `FIFO flag must fail closed, got status=${r.status} signal=${r.signal}`);

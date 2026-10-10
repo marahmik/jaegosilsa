@@ -25,6 +25,13 @@ description: Create a new project from the omp template repository
 | **gh CLI 인증 확인** | 미인증이면 안내 후 중단 |
 | **플레이스홀더 정리** | 이전 프로젝트 흔적 남기지 않음 |
 
+## 지원 플랫폼과 전제
+
+- **공식 지원**: Linux · WSL · macOS. **Windows 네이티브**는 동작을 목표로 하며, OS 기능(심볼릭 링크·FIFO)이 없는 환경의 테스트는 사유를 출력하고 skip한다(보안 게이트 테스트의 일괄 skip은 없다). #93의 런타임 수정(review-gate의 `shasum` 의존 제거, cross-repo·`git -C` 절대 경로 판정)은 들어 있지만 실제 Windows 호스트에서 전체 suite를 실행해 확인한 것은 아니다. 근거: 이슈 #92/#94, 상세는 README `지원 플랫폼` 절.
+- **전제**: Node.js ≥ 20(CI는 22에서만 실행하고, 하네스 테스트 스위트 전체는 22.18+ — wiring 테스트가 내장 TS 변환을 쓴다), bash(Windows는 Git for Windows), 그 bash의 PATH에 `node`(없으면 pre-commit 훅이 fail-closed, `OMP_NODE_BIN`이 탈출구), 심볼릭 링크 테스트는 Windows 개발자 모드.
+- **CRLF**: 템플릿의 `.gitattributes`가 `*.sh`와 `.githooks/*`를 LF로 고정한다. 템플릿에서 만든 새 리포는 그대로 받고, `.gitattributes`는 `harness-check` 동기화 대상이 아니므로 기존 소비 리포는 두 줄을 직접 추가한다. 이미 CRLF로 체크아웃된 스크립트는 작업 트리를 다시 써야 LF가 된다(미커밋 변경이 없을 때 `git rm --cached -r -q . && git reset --hard` 또는 새 clone — `git add --renormalize .`는 인덱스만 바꾼다).
+- **검증 권장 경로**: Windows에서는 WSL에서 같은 체크아웃으로 `node --test .omp/extensions/harness/tests/*.test.mjs`를 돌린다.
+
 ## Workflow
 
 ### Phase 0: Pre-flight

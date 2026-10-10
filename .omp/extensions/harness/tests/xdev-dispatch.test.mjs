@@ -59,7 +59,7 @@ test('route: resolve apply는 실파일 목록의 apply', () => {
 	});
 	assert.deepEqual(
 		mutationRoute('write', { path: 'xd://resolve', content: 'why' }, details, '', CWD),
-		{ kind: 'apply', files: ['/abs/a.mjs', resolve(CWD, 'rel/b.mjs')] },
+		{ kind: 'apply', files: [resolve('/abs/a.mjs'), resolve(CWD, 'rel/b.mjs')] },
 	);
 });
 
@@ -76,7 +76,7 @@ test('route: ast_grep 디바이스는 inner.files를 read-anchors로', () => {
 	const details = env('ast_grep', { files: ['/abs/hit.ts', 'src/hit2.ts'] });
 	assert.deepEqual(
 		mutationRoute('write', { path: 'xd://ast_grep' }, details, '', CWD),
-		{ kind: 'read-anchors', files: ['/abs/hit.ts', resolve(CWD, 'src/hit2.ts')] },
+		{ kind: 'read-anchors', files: [resolve('/abs/hit.ts'), resolve(CWD, 'src/hit2.ts')] },
 	);
 });
 
@@ -161,14 +161,14 @@ test('localFileTarget: URI 스킴은 null, 파일 경로는 절대화', () => {
 	assert.equal(localFileTarget('local://plan.md', CWD), null);
 	assert.equal(localFileTarget('memory://abc', CWD), null);
 	assert.equal(localFileTarget('src/a.ts', CWD), resolve(CWD, 'src/a.ts'));
-	assert.equal(localFileTarget('/abs/b.ts', CWD), '/abs/b.ts');
+	assert.equal(localFileTarget('/abs/b.ts', CWD), resolve('/abs/b.ts'));
 	assert.equal(localFileTarget('', CWD), null);
 	assert.equal(localFileTarget(42, CWD), null);
 });
 
 test('resolvedAstEditFiles / astEditResultFiles: 파일 목록 정규화', () => {
 	const inner = { sourceResultDetails: { files: ['/abs/a.mjs', { path: 'rel.mjs' }] } };
-	assert.deepEqual(resolvedAstEditFiles(inner, CWD), ['/abs/a.mjs', resolve(CWD, 'rel.mjs')]);
+	assert.deepEqual(resolvedAstEditFiles(inner, CWD), [resolve('/abs/a.mjs'), resolve(CWD, 'rel.mjs')]);
 	assert.deepEqual(resolvedAstEditFiles({ action: 'apply' }, CWD), []);
 	assert.deepEqual(astEditResultFiles({ files: ['x.mjs'] }, CWD), [resolve(CWD, 'x.mjs')]);
 	assert.deepEqual(astEditResultFiles(undefined, CWD), []);
@@ -178,7 +178,7 @@ test('결과 payload의 files에 URI 항목이 섞여도 원장 오염 없음 (V
 	const inner = { sourceResultDetails: { files: ['xd://resolve', 'local://x.md', 'ok.mjs'] } };
 	assert.deepEqual(resolvedAstEditFiles(inner, CWD), [resolve(CWD, 'ok.mjs')]);
 	assert.deepEqual(astEditResultFiles({ files: ['xd://ast_edit', 'ok2.mjs'] }, CWD), [resolve(CWD, 'ok2.mjs')]);
-	assert.deepEqual(searchTrackTargets({ files: ['memory://m', '/abs/ok.ts'] }, '', CWD), ['/abs/ok.ts']);
+	assert.deepEqual(searchTrackTargets({ files: ['memory://m', '/abs/ok.ts'] }, '', CWD), [resolve('/abs/ok.ts')]);
 });
 
 test('단일 슬래시 정규화형 가상 URI도 원장에 못 들어간다 (r2 — session-log:315 xd:/retain 반례)', () => {

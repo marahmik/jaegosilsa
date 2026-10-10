@@ -21,6 +21,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, cpSync, sy
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipUnless } from './helpers/capabilities.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..', '..');
@@ -275,7 +276,7 @@ test('a deleted tracked CHANGELOG.md (unstaged or staged) aborts instead of ship
   }
 });
 
-test('a tracked symlinked CHANGELOG.md aborts (the promotion would write through to the target)', () => {
+test('a tracked symlinked CHANGELOG.md aborts (the promotion would write through to the target)', { skip: skipUnless('symlink') }, () => {
   withRepo({ changelogText: undefined }, (dir) => {
     writeFileSync(join(dir, 'real.md'), changelog(ENTRIES));
     symlinkSync('real.md', join(dir, 'CHANGELOG.md'));
@@ -318,5 +319,65 @@ test('promotion keeps the file mode, leaves no temp file behind, and never expos
     assert.doesNotMatch(readFileSync(join(dir, '.git', 'hook-status'), 'utf-8'), /^\?\?/m);
     assert.deepEqual(readdirSync(dir).filter((n) => n.startsWith('CHANGELOG.md.')), []);
     assert.deepEqual(readdirSync(join(dir, '.git')).filter((n) => n.startsWith('changelog-promote')), []);
+  });
+});
+
+// BSD/macOS sed takes `-i SUFFIX` (the suffix is a separate argument) and stops option parsing at the
+// first non-option, so the GNU-style `sed -i -e … -e … FILE` fails there with "sed: -e: No such file
+// or directory" (issue #91). This shim fails every in-place spelling (-i, -i.bak, bundles such as -Ei,
+// --in-place) the way BSD sed fails the GNU form, and delegates every other call to the real sed, so
+// the bump must rewrite harness-meta.json without any in-place sed.
+function bumpWithBsdSed(dir) {
+  const realSed = spawnSync('sh', ['-c', 'command -v sed'], { encoding: 'utf-8' }).stdout.trim();
+  assert.match(realSed, /^\//, 'need an absolute path to the real sed for the shim to delegate to');
+  const bin = mkdtempSync(join(tmpdir(), 'bsd-sed-'));
+  try {
+    writeFileSync(join(bin, 'sed'), `#!/bin/sh
+for a in "$@"; do
+  case "$a" in --in-place*|-i*|-[!-]*i*) echo "sed: -e: No such file or directory" >&2; exit 1 ;; esac
+done
+exec "${realSed}" "$@"
+`, { mode: 0o755 });
+    return spawnSync('bash', [join(dir, 'scripts', 'harness-version-bump.sh')], {
+      cwd: dir,
+      encoding: 'utf-8',
+      env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' },
+    });
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
+}
+
+function assertMetaBumped(dir) {
+  const meta = JSON.parse(readFileSync(join(dir, META), 'utf-8'));
+  const promoted = readFileSync(join(dir, 'CHANGELOG.md'), 'utf-8').match(new RegExp(`## \\[${NEW_VERSION.replace('.', '\\.')}\\] - (\\d{4}-\\d{2}-\\d{2})`));
+  assert.ok(promoted, 'CHANGELOG heading carries the bump date');
+  assert.equal(meta.version, NEW_VERSION);
+  assert.equal(meta.updated, promoted[1], 'both sed expressions applied: version AND updated');
+  assert.equal(meta.description, 'fixture');
+  assert.deepEqual(readdirSync(join(dir, '.git')).filter((n) => n.startsWith('changelog-promote')), []);
+  assert.deepEqual(readdirSync(dirname(join(dir, META))).filter((n) => n.startsWith('harness-meta.json.')), []);
+  assert.equal(git(dir, ['status', '--porcelain']).trim(), '');
+}
+
+test('bump never relies on GNU-style `sed -i`: a BSD-parsing sed shim cannot break it, and meta keeps its mode', () => {
+  withRepo({ changelogText: changelog(ENTRIES) }, (dir) => {
+    chmodSync(join(dir, META), 0o640);
+    const r = bumpWithBsdSed(dir);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assertMetaBumped(dir);
+    assert.equal(statSync(join(dir, META)).mode & 0o777, 0o640);
+  });
+});
+
+// A read-only meta file (non-root) is replaced, not written through: the copy keeps the mode but our
+// own write to the temp file must still succeed (`cp -p` alone would make the temp read-only too).
+test('bump replaces a read-only harness-meta.json and keeps it read-only', { skip: process.getuid?.() === 0 && 'root ignores file modes' }, () => {
+  withRepo({ changelogText: changelog(ENTRIES) }, (dir) => {
+    chmodSync(join(dir, META), 0o444);
+    const r = bumpWithBsdSed(dir);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assertMetaBumped(dir);
+    assert.equal(statSync(join(dir, META)).mode & 0o777, 0o444);
   });
 });

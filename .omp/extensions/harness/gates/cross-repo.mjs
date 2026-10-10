@@ -25,7 +25,7 @@
 
 import { existsSync, readFileSync, realpathSync } from 'fs';
 import { basename, dirname, join } from 'path';
-import { isGitCommit, isGitPush, shellWriteTargets } from './git-commit-detect.mjs';
+import { absolutize, isGitCommit, isGitPush, shellWriteTargets } from './git-commit-detect.mjs';
 import { repoIdentity, repoToplevel } from './repo-root.mjs';
 
 export const DISCIPLINE_FILES = ['AGENTS.md', 'CLAUDE.md', '.cursorrules'];
@@ -70,7 +70,7 @@ function ledgerHas(ledger, id, name) {
 export function crossRepoMutationVerdict(target, sessionCwd, ledger = null) {
   const sessionId = repoIdentity(sessionCwd);
   if (!sessionId) return null;                                   // no session repo: nothing to compare
-  const abs = target.startsWith('/') ? target : `${sessionCwd}/${target}`;   // not normalized: `link/..` is resolved physically by repo-root
+  const abs = absolutize(target, sessionCwd);                   // path.isAbsolute (#93); not normalized: `link/..` is resolved physically by repo-root
   const top = repoToplevel(abs);
   if (!top) return null;                                         // outside any repo: no discipline to load
   const id = repoIdentity(abs);

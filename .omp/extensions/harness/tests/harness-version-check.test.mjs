@@ -26,6 +26,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipUnless } from './helpers/capabilities.mjs';
 
 const GATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'gates', 'harness-version-check.mjs');
 
@@ -349,7 +350,7 @@ test('hooks probe runs before the source-repo skip (no source_remote still gets 
   });
 });
 
-test('hooks active through a symlinked session cwd is silent (real-path comparison)', () => {
+test('hooks active through a symlinked session cwd is silent (real-path comparison)', { skip: skipUnless('symlink') }, () => {
   withFixture({ localVersion: '2026.61' }, (fx) => {
     gitInit(fx.consumer);
     mkdirSync(join(fx.consumer, '.githooks'));
