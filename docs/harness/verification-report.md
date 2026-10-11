@@ -173,3 +173,17 @@ Vercel 구성은 vite/npm ci/npm run build/dist/Node24 기준이며 git.deployme
 사용자가 저장소 연결 및 실제 재배포를 승인했습니다. `vercel git connect --yes --scope marahmiks-projects`는 `marahmik/jaegosilsa` 연결 성공을 반환했고 인증된 API 조회에서 해당 프로젝트의 github/org/repo 및 productionBranch main을 확인했습니다. Hobby와 Node 24.x / Vite / npm ci / npm run build / dist 설정은 유지합니다. `vercel.json`은 main true 및 globstar false로 제한하며 앱 코드·DB 이름/버전·production 주소는 바꾸지 않습니다.
 
 설정 커밋 전 정상 공개 버전에는 리셋 버튼이 없었습니다. 사용자 원본 대신 가상 2종 XLSX와 스캔 수량 1을 관리형 Chromium의 production origin에 저장해 재배포 전후 기록 보존 기준을 확보했습니다. 실제 Git-triggered 배포 READY·공개 리셋·재로딩 결과는 설정 푸시 이후 관측해 기록합니다. 원본 파일·인증·로컬 아카이브는 Git 추적 대상에 없고 유료 전환·구매는 수행하지 않습니다.
+
+### 실제 Git-triggered production 실행 결과
+
+- 설정 커밋 `2bb1a4e0c23bbddf56bed5959291805c06fc9d73`의 main 푸시가 배포 `dpl_8gEE2CC4XzQEyDmH5eCMrxX95KSM`를 생성했습니다. CLI inspect와 인증된 metadata의 gitSource/githubCommitSha는 github / main / 해당 SHA였고 target production, READY, Hobby, sourcePublic false 및 기존 https://jaegosilsa.vercel.app alias를 확인했습니다. 수동 CLI 배포로 Git 연결 시험을 대신하지 않았습니다.
+- 공개 HTML·main JS·CSS·XLSX worker는 인증 없이 200, 올바른 MIME 및 검증된 로컬 빌드와 같은 SHA-256이었습니다. README·seed·.env.local·가상 입력 파일 경로는 404입니다. 공개 HTML에도 전체 리셋 버튼이 있습니다.
+- 재배포 전 가상 파일·실물 1을 저장한 동일 관리형 브라우저에서 재배포 후 새로고침해 같은 파일·실물 1·저장 완료를 복원했습니다. 리셋 취소도 유지됐고 승인 후 제품/수량/파일 정보가 비었으며 다시 새로고침해도 실사 기록 없음이었습니다. 같은 파일 재가져오기는 실물 0·undo 비활성으로 시작했습니다.
+- 재가져온 뒤 새 바코드를 스캔하고 실제 브라우저 다운로드 완료 이벤트의 XLSX를 별도로 읽어 아래 결과를 확인했습니다. 네트워크는 배포 origin의 정적 GET뿐이고 앱 런타임 오류는 없었습니다. 원본 사용자 XLSX나 사용자 브라우저 기록은 사용하지 않았습니다.
+
+|바코드|기준|실물|차이|
+|---|---:|---:|---:|
+|GIT-0001|2|0|-2|
+|GIT-0002|-1|1|2|
+
+해당 SHA의 app-ci 38156294856과 Linux harness-ci 38156294845는 모두 success였습니다. 기존 Windows 하네스 실패의 해결로 확장하지 않습니다. Git 연결·main 자동 production 배포·공개 리셋은 실제 서비스에서 관측했으며 앱 코드·DB 이름/버전·production origin·Hobby 플랜은 그대로입니다.

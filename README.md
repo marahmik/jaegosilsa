@@ -62,6 +62,8 @@ npm run preview
 
 `vercel.json`의 Git 배포 규칙은 `main: true`, `**: false`입니다. 다른 브랜치는 자동 배포하지 않습니다. GitHub CI 성공과 Vercel의 READY 상태는 별개이므로 둘 다 확인하세요.
 
+전체 리셋은 production 사이트에 반영됐습니다. 같은 주소로 재배포하는 것만으로 기존 실사 기록이 지워지지 않으며, 리셋 버튼의 삭제 확인을 승인해야 지워집니다.
+
 ### 자동 배포 및 필요시 수동 재배포
 
 1. Vercel CLI로 인증하고 이미 연결된 `marahmiks-projects/jaegosilsa` 프로젝트를 사용합니다. `.vercel`과 `.env*`는 로컬 설정·인증 관련 파일이므로 커밋하지 않습니다.

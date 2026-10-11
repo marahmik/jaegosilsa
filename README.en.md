@@ -62,6 +62,8 @@ The user confirmed this is a noncommercial personal project, so `marahmiks-proje
 
 The Git deployment rules in `vercel.json` are `main: true`, `**: false`. Other branches do not deploy automatically. GitHub CI success and Vercel READY are separate results; verify both.
 
+Full reset is live on the production site. Redeploying to the same address does not itself erase an existing stocktake; deletion requires confirming the full-reset button.
+
 ### Automatic Deployment and Optional Manual Redeployment
 
 1. Authenticate through Vercel CLI and use the already linked `marahmiks-projects/jaegosilsa` project. Never commit `.vercel` or `.env*`, which contain local settings or authentication-related data.
