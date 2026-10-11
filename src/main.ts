@@ -11,6 +11,7 @@ const scanInput = document.querySelector<HTMLInputElement>('#scan-input')!;
 const scanButton = document.querySelector<HTMLButtonElement>('#scan-button')!;
 const scanForm = document.querySelector<HTMLFormElement>('#scan-form')!;
 const exportButton = document.querySelector<HTMLButtonElement>('#export-button')!;
+const resetButton = document.querySelector<HTMLButtonElement>('#reset-button')!;
 const undoButton = document.querySelector<HTMLButtonElement>('#undo-button')!;
 const searchInput = document.querySelector<HTMLInputElement>('#search-input')!;
 const sourceFilter = document.querySelector<HTMLSelectElement>('#source-filter')!;
@@ -68,6 +69,7 @@ function updateControls(): void {
   scanInput.disabled = busy || !stocktake;
   scanButton.disabled = busy || !stocktake;
   exportButton.disabled = busy || !stocktake;
+  resetButton.disabled = busy || (!stocktake && !restoreFailed);
   undoButton.disabled = busy || !stocktake || !history.length || pendingWrites > 0;
   searchInput.disabled = !stocktake;
   sourceFilter.disabled = !stocktake;
@@ -99,6 +101,10 @@ function renderSummary(): void {
     catalogDescription.textContent = `원본 재고: 음수 ${formatter.format(stocktake.stats.sourceNegative)}종 · 양수 ${formatter.format(stocktake.stats.sourcePositive)}종 · 0 ${formatter.format(stocktake.stats.sourceZero)}종`;
     reviewSummary.hidden = stocktake.stats.needsReview === 0;
     reviewSummary.textContent = `품번·색상 확인 필요 ${formatter.format(stocktake.stats.needsReview)}종`;
+  } else {
+    catalogDescription.textContent = '엑셀을 불러오면 제품 목록이 표시됩니다.';
+    reviewSummary.hidden = true;
+    reviewSummary.textContent = '';
   }
 }
 
@@ -189,6 +195,9 @@ function renderRows(): void {
   if (stocktake && !filteredProducts.length) {
     emptyState.querySelector('h4')!.textContent = '조건에 맞는 제품이 없습니다.';
     emptyState.querySelector('p')!.textContent = '검색어와 원본 재고·실사 차이 필터를 확인해주세요.';
+  } else if (!stocktake) {
+    emptyState.querySelector('h4')!.textContent = '실사를 시작할 준비가 됐습니다.';
+    emptyState.querySelector('p')!.textContent = 'POS 엑셀을 불러와 기준 제품 목록을 만들어주세요.';
   }
   resultCount.textContent = `${formatter.format(filteredProducts.length)}개 제품${stocktake ? ` / 전체 ${formatter.format(stocktake.products.length)}개` : ''}`;
   pageLabel.textContent = `${totalPages ? page + 1 : 0} / ${totalPages}`;
@@ -318,6 +327,32 @@ fileInput.addEventListener('change', async () => {
   } finally {
     busy = false; updateControls();
     if (stocktake) scanInput.focus();
+  }
+});
+
+resetButton.addEventListener('click', async () => {
+  if (busy || (!stocktake && !restoreFailed)) return;
+  busy = true; updateControls();
+  try {
+    await writeQueue;
+    if (!window.confirm('불러온 엑셀의 제품 목록과 모든 스캔·수정 수량을 이 브라우저에서 삭제할까요? 복구할 수 없으니 필요한 결과는 먼저 내려받아주세요. PC의 원본 엑셀 파일은 삭제되지 않습니다.')) return;
+    await store.clear();
+    session = null; stocktake = null;
+    searchIndex = []; history.length = 0;
+    clearTimeout(searchTimer);
+    fileInput.value = ''; scanInput.value = ''; searchInput.value = '';
+    sourceFilter.value = 'all'; differenceFilter.value = 'all'; reviewFilter.checked = false;
+    fileInfo.textContent = '아직 선택한 파일이 없습니다.';
+    restoreFailed = false; saveFailed = false;
+    renderSummary(); renderLastScan(); applyFilters();
+    showNotice('불러온 제품 목록과 스캔·수정 수량을 모두 삭제했습니다. 새 엑셀을 불러와 실사를 시작해주세요.');
+  } catch (error) {
+    saveFailed = true;
+    showNotice(`리셋하지 못했습니다: ${error instanceof Error ? error.message : '브라우저 저장소 오류'}. 기존 실사 기록은 유지됩니다.`, 'error');
+  } finally {
+    busy = false; updateControls();
+    if (stocktake) scanInput.focus();
+    else fileInput.focus();
   }
 });
 

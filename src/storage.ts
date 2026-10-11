@@ -255,6 +255,13 @@ export class StocktakeStore {
     }, () => undefined);
   }
 
+  async clear(): Promise<void> {
+    const database = await this.open();
+    return transact(database, STORES, 'readwrite', transaction => {
+      for (const name of STORES) transaction.objectStore(name).clear();
+    }, () => undefined);
+  }
+
   async setCount(sessionId: string, barcode: string, count: number): Promise<void> {
     if (!nonemptyString(sessionId) || !nonemptyString(barcode)) throw new Error('실사 ID와 바코드는 비어 있지 않은 문자열이어야 합니다.');
     validateCount(count);

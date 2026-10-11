@@ -37,3 +37,7 @@ Unresolved software findings: 0
 위 독립 검토 결과와 당시 미체크 항목은 이전 시점의 기록입니다. 이후 사용자가 음성 재생을 확인했고, 스캐너 미보유로 이번 물리 장비 시험을 제외하도록 승인했습니다. 현 scope의 개정 AC6는 이 사용자 확인과 기존 소프트웨어 검증을 근거로 체크했습니다. 키보드형 입력 지원과 자동 검증은 유지하며, 물리 스캐너 호환성을 검증했다고 기록하지 않습니다.
 
 현재 수락 항목은 9개 모두 충족으로 기록하되 seed는 version 2, status approved로 유지합니다. 위 검토자의 과거 verdict를 소급 변경하지 않았고 커밋·푸시·작업 종료 전이는 수행하지 않았습니다. 하네스의 잔여 실패는 별도 upstream #98에서 추적합니다.
+
+## 전체 리셋 완료 코드 검토 — AC14–AC17
+
+`ResetTestPlanAttack` code-reviewer의 최종 구현 검토는 `PASS`, CRITICAL/HIGH/MEDIUM/LOW 지적 0건입니다. 현재 main/storage/index/style 및 데스크톱·375px 화면 스크린샷을 직접 대조했습니다. 부모의 네이티브 트랜잭션 완료/abort·취소/대기열/busy·손상 복원/같은 파일 재가져오기 실행 근거와 `artifact://371`의 12 pass / 0 fail 및 TypeScript/Vite 빌드 성공을 검토했습니다. 코드 검토자가 브라우저·테스트를 재실행했다고 주장하지 않습니다. 사람의 새 비프음 청취·물리 스캐너 및 전체 Windows 하네스 재검증은 이번 리셋 작업 범위 밖입니다.

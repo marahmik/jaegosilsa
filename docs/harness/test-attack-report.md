@@ -26,3 +26,7 @@ CRITICAL: 0
 ## Disposition
 
 위 내용은 새 기능이 아니라 기존 AC의 실패 경계 검증이며 test-plan.md에 반영했습니다. 실제 실행 결과와 남은 물리 장비 한계는 verification-report.md에 별도로 기록했습니다. CRITICAL 또는 범위 변경이 필요한 사용자 결정 차단 사항은 없었습니다.
+
+## 전체 리셋 계획 검토 — AC14–AC17
+
+`ResetTestPlanAttack` code-reviewer가 계획과 기존 main/storage의 busy·writeQueue·트랜잭션 경계를 읽기 전용으로 검토했습니다. 초기 판정은 CRITICAL/HIGH 0건, MEDIUM 2건이었습니다. 기존 작업이 먼저 busy인 경우의 리셋 차단과 여러 기존 쓰기 전체의 완료 전 삭제 금지를 R9·R5로 보완했습니다. 재검토는 `PASS`, 미해결 지적 0건입니다. 이는 계획 검토이며 브라우저 동작이나 실제 장비 청취를 재실행했다는 의미가 아닙니다.

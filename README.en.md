@@ -60,6 +60,8 @@ The user confirmed this is a noncommercial personal project, so `marahmiks-proje
 
 `app-ci` runs `npm ci`, `npm test` and `npm run build` with Node.js 24 on pushes to `main` and pull requests, without deploying. The Vercel project's Git connection is disconnected and `git.deploymentEnabled: false` remains in `vercel.json`. **A Git push does not update the site; an authorized manual redeployment is required.**
 
+The full-reset feature is currently implemented and verified locally; it has not yet been redeployed to the public site above.
+
 ### Manual Redeployment
 
 1. Authenticate through Vercel CLI and use the already linked `marahmiks-projects/jaegosilsa` project. Never commit `.vercel` or `.env*`, which contain local settings or authentication-related data.
@@ -81,6 +83,7 @@ Deploy static assets only, without functions or a blanket SPA rewrite. There are
 ## Operational Boundaries
 
 - Confirmed file replacement resets physical counts to zero. Download a current POS export before starting a stocktake to include new products.
+- **전체 리셋** (full reset), left of the download button, asks for confirmation and deletes this browser's imported file information, catalog and scan/manual counts. Refresh does not restore them, so download needed results first. It does not delete the original XLSX on your PC; canceling or a failed deletion preserves the existing records.
 - Manual corrections invalidate that product's earlier undo entries. Undo history is not restored after refresh.
 - Downloads include every product regardless of current search/filter settings.
 - Storage and speech failures are visible. Do not treat a failed save as committed.

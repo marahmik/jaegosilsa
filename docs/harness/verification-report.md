@@ -146,3 +146,24 @@ Vercel 구성은 vite/npm ci/npm run build/dist/Node24 기준이며 git.deployme
 성공한 `.vercel/output`은 작업 폴더의 ignore 대상에 정적 파일 바이트를 그대로 복사해 보관했습니다. 전용 임시 빌드 폴더·가상 입력 XLSX·다운로드 결과는 모두 제거했습니다. 로컬 preview는 127.0.0.1:4173에서 유지하며 이번 배포 기록/ignore 갱신의 새 커밋·푸시는 수행하지 않았습니다.
 
 독립 `ActualVercelDeploymentVerify`의 최종 판정은 `PASS`, `blocking_issues: []`, 현재 배포 요구의 `residual_count: 0`입니다. 프로젝트·READY 상태·Hobby 유지·익명 HTTP/MIME/404·문서 및 ignore를 독립 확인했고, 브라우저 수량·오디오 관측과 빌드/테스트는 제공된 실행 근거를 검토했습니다.
+
+## 전체 리셋 — 2026-10-12 KST, Seed Version 8
+
+사용자는 다운로드 버튼 왼쪽에 불러온 엑셀과 스캔 정보를 모두 지우는 리셋을 요청했습니다. 삭제 확인·영구 초기화·실패 시 기존 기록 보존 검증과 정식 디자인 계약 신규 작성 대신 기존 스타일 재사용을 승인했습니다. AC14–AC17을 추가했고 이번 P2 scope는 해당 기준만 추적합니다. 기존 구현·배포·보관 및 실제 장비 제외 이력은 바꾸지 않습니다.
+
+- RED: 실제 네이티브 저장소에 파일 정보·제품·수량 1을 저장한 후 소비자가 전체 삭제를 호출했을 때 `store.clear is not a function`으로 실패했고 파일·수량은 남았습니다. 화면에도 리셋 버튼이 없었습니다.
+- GREEN: `StocktakeStore.clear`는 기존 `transact`로 session/catalog/counts를 한 readwrite 트랜잭션에서 clear하고 transaction complete 이후에만 성공합니다. main은 전체 writeQueue와 확인을 거쳐 삭제를 기다린 뒤 데이터 참조·이력·입력·필터·표·요약·빈 안내를 초기화합니다. 초기 실패 진단은 document-start로 적용해 실제 앱 realm의 네이티브 clear를 관측했습니다.
+- 확인 취소는 스캔·수정된 실물 합계 5, 파일·최근 스캔·검색·원본/차이 필터·확인 필요 체크를 유지했습니다. 승인 후 load는 null, 제품 행은 0, 실물은 —, 페이지는 0/0, 필터는 all, 최근 스캔/undo/review/catalog/빈 안내는 초기 상태였습니다.
+- 세 clear request를 실제 발행하고 session request의 success 뒤 transaction을 abort했습니다. 실제 abort를 관측했고 제품 3개·저장 수량 1·화면 실물 1을 그대로 보존하며 리셋 오류를 표시했습니다. 단순 모의 Promise 거절을 성공 근거로 쓰지 않았습니다.
+- 첫 네이티브 counts 쓰기를 보류한 채 두 번째 스캔도 접수한 뒤 리셋했습니다. 첫 저장 중에는 pending 2건, 두 번째 저장 중에는 pending 1건이었고 두 상태 모두 clear 미시작이었습니다. 두 번째 transaction complete까지 끝난 뒤에만 clear가 시작했고 이후 load null·빈 화면·재로딩 기록 없음이었습니다. 기다리는 동안 스캔·파일·중복 리셋은 비활성이었습니다.
+- 가져오기 replace, 내보내기의 기존 쓰기 대기, 복원의 readonly transaction을 각각 보류했습니다. 리셋이 비활성이었고 강제로 클릭 이벤트를 보내도 clear가 추가로 시작되지 않았습니다. 해제하면 기존 가져오기·내보내기·복원이 정상 완료됐습니다. 정상 빈 화면에서도 리셋은 비활성입니다.
+- 기존 metadata만 손상시킨 뒤 복원 오류를 발생시켰습니다. 리셋은 확인 후 실행 가능했고 삭제·새로고침·같은 이름의 파일 재가져오기에서 제품 3개·실물 0·undo 비활성을 확인했습니다. 검색 결과 없음·review와 부호 필터가 남았던 상태도 빈 안내와 all 필터로 복구됐습니다.
+- localhost의 리셋 뒤 127.0.0.1의 같은 앱 저장 수량 2와 같은 origin의 별도 앱 DB marker는 보존됐습니다. 개인정보 없는 가상 XLSX의 SHA-256도 바뀌지 않았습니다. 사용자 원본 XLSX는 읽거나 복사하지 않았고 사용자 브라우저에서 리셋을 실행하지 않았습니다.
+- `npm test`는 기존 12건 통과, `npm run build`는 TypeScript/Vite 성공이었습니다. 빌드된 localhost:4173에서도 실제 가져오기·스캔·리셋·재로딩을 실행해 실사 기록 없음과 빈 파일 정보를 확인했고 런타임 오류는 없었습니다. Windows 하네스의 기존 실패는 재실행하지 않았습니다.
+- 버튼은 데스크톱에서 다운로드 왼쪽의 같은 높이에 있고, 375px 화면에서도 두 버튼의 오른쪽 끝이 화면 안에 있습니다. `artifacts/reset-desktop.png`, `artifacts/reset-mobile.png`에 실제 화면을 저장했습니다. 기존 button subtle·intro gap을 재사용하며 추가된 CSS에서 새 색·px 간격·폰트 리터럴 검색은 0건입니다.
+
+계획 검토의 MEDIUM 2건은 R5·R9 보완 후 PASS였으며 완료 코드 검토도 PASS였습니다. 새로운 mock/source-text 영구 UI 테스트나 테스트 의존성은 추가하지 않았습니다. 원본이 아닌 가상 입력과 진단만 사용한 실제 브라우저 실행 근거를 유지합니다. 이 구현 검증 시점에는 커밋·푸시·Vercel 재배포를 수행하지 않았으며 공개 사이트의 기능이 갱신됐다고 주장하지 않았습니다.
+
+일회성 네이티브 진단 init script 목록은 최종 확인에서 비어 있었고 자동화의 가상 실사 데이터·다른 origin sentinel·별도 DB marker와 임시 XLSX 폴더를 정리했습니다. 전용 탭을 닫고 개발 watcher를 종료했으며 런타임 오류 목록은 비어 있었습니다. 실제 화면 증거 두 PNG만 artifacts의 ignore 대상에 보관했습니다. 빌드된 앱의 기존 preview origin은 127.0.0.1:4173으로 유지합니다.
+
+독립 `FullResetAcceptanceVerify`의 최종 판정은 `PASS`, `blocking_issues: []`, 새 리셋 요구의 `residual_count: 0`입니다. 최신 앱 테스트·빌드 근거는 `artifact://371`이며 하네스 backpressure 상태 UNKNOWN 및 이전 test-history 시각은 별도 제약으로 구분합니다. 전체 하네스 게이트나 기존 Windows 실패가 해결됐다고 주장하지 않습니다.
