@@ -167,3 +167,9 @@ Vercel 구성은 vite/npm ci/npm run build/dist/Node24 기준이며 git.deployme
 일회성 네이티브 진단 init script 목록은 최종 확인에서 비어 있었고 자동화의 가상 실사 데이터·다른 origin sentinel·별도 DB marker와 임시 XLSX 폴더를 정리했습니다. 전용 탭을 닫고 개발 watcher를 종료했으며 런타임 오류 목록은 비어 있었습니다. 실제 화면 증거 두 PNG만 artifacts의 ignore 대상에 보관했습니다. 빌드된 앱의 기존 preview origin은 127.0.0.1:4173으로 유지합니다.
 
 독립 `FullResetAcceptanceVerify`의 최종 판정은 `PASS`, `blocking_issues: []`, 새 리셋 요구의 `residual_count: 0`입니다. 최신 앱 테스트·빌드 근거는 `artifact://371`이며 하네스 backpressure 상태 UNKNOWN 및 이전 test-history 시각은 별도 제약으로 구분합니다. 전체 하네스 게이트나 기존 Windows 실패가 해결됐다고 주장하지 않습니다.
+
+## Vercel Git 연결 및 재배포 설정 — 2026-10-12 KST
+
+사용자가 저장소 연결 및 실제 재배포를 승인했습니다. `vercel git connect --yes --scope marahmiks-projects`는 `marahmik/jaegosilsa` 연결 성공을 반환했고 인증된 API 조회에서 해당 프로젝트의 github/org/repo 및 productionBranch main을 확인했습니다. Hobby와 Node 24.x / Vite / npm ci / npm run build / dist 설정은 유지합니다. `vercel.json`은 main true 및 globstar false로 제한하며 앱 코드·DB 이름/버전·production 주소는 바꾸지 않습니다.
+
+설정 커밋 전 정상 공개 버전에는 리셋 버튼이 없었습니다. 사용자 원본 대신 가상 2종 XLSX와 스캔 수량 1을 관리형 Chromium의 production origin에 저장해 재배포 전후 기록 보존 기준을 확보했습니다. 실제 Git-triggered 배포 READY·공개 리셋·재로딩 결과는 설정 푸시 이후 관측해 기록합니다. 원본 파일·인증·로컬 아카이브는 Git 추적 대상에 없고 유료 전환·구매는 수행하지 않습니다.

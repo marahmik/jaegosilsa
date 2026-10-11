@@ -58,16 +58,16 @@ npm run preview
 
 사용자가 비업무용 개인 프로젝트임을 확인하여 `marahmiks-projects/jaegosilsa`를 Hobby 플랜으로 배포했습니다. 유료 전환이나 구매는 수행하지 않았습니다. 향후 상업·업무 용도로 바뀌면 [Hobby의 비상업적 개인 용도 제한](https://vercel.com/docs/plans/hobby)을 다시 확인해야 합니다.
 
-`app-ci`는 `main` push와 pull request에서 Node.js 24로 `npm ci`, `npm test`, `npm run build`를 실행하며 배포하지 않습니다. Vercel 프로젝트의 Git 연결은 해제했고 `vercel.json`의 `git.deploymentEnabled: false`도 유지합니다. **Git push만으로 사이트가 갱신되지 않으며 승인된 수동 재배포가 필요합니다.**
+`app-ci`는 `main` push와 pull request에서 Node.js 24로 설치·테스트·빌드만 수행합니다. Vercel 프로젝트는 GitHub `marahmik/jaegosilsa`와 연결되며, **`main` 푸시는 별도의 Vercel production 배포를 자동 시작합니다.**
 
-전체 리셋 기능은 현재 로컬 구현·검증 상태이며 위 공개 사이트에는 아직 재배포하지 않았습니다.
+`vercel.json`의 Git 배포 규칙은 `main: true`, `**: false`입니다. 다른 브랜치는 자동 배포하지 않습니다. GitHub CI 성공과 Vercel의 READY 상태는 별개이므로 둘 다 확인하세요.
 
-### 수동 재배포
+### 자동 배포 및 필요시 수동 재배포
 
 1. Vercel CLI로 인증하고 이미 연결된 `marahmiks-projects/jaegosilsa` 프로젝트를 사용합니다. `.vercel`과 `.env*`는 로컬 설정·인증 관련 파일이므로 커밋하지 않습니다.
 2. 프로젝트 루트는 `.`이며 Framework Preset은 **Vite**, Install Command는 `npm ci`, Build Command는 `npm run build`, Output Directory는 `dist`, Node.js Version은 **24.x**입니다.
-3. 설치·테스트·빌드를 성공시킨 뒤 [로컬 production 빌드](https://vercel.com/docs/cli/build)의 `.vercel/output`을 [prebuilt production 배포](https://vercel.com/docs/cli/deploy#prebuilt)합니다. 이번 배포에는 CLI `63.1.2`의 `vercel build --prod --yes --scope marahmiks-projects` 및 `vercel deploy --prebuilt --prod --yes --scope marahmiks-projects`를 사용했습니다. 원본 XLSX·저장소 내부 문서는 배포물에 포함하지 않습니다.
-4. Windows에서 preview나 TypeScript 언어 서버가 네이티브 파일을 잠그면 `npm ci`가 EPERM으로 실패할 수 있습니다. 에디터 프로세스를 강제 종료하지 않고 동일 소스와 프로젝트 연결 설정을 복사한 별도 임시 폴더에서 설치·빌드하는 방식으로 이번 배포를 검증했습니다.
+3. 검증된 변경을 `main`에 푸시하면 연결된 비공개 저장소에서 Vercel이 클라우드 빌드합니다. 공개 배포물은 `dist`의 정적 앱입니다. 수동 배포가 필요하면 [로컬 production 빌드](https://vercel.com/docs/cli/build) 후 `vercel deploy --prebuilt --prod --yes --scope marahmiks-projects`를 사용합니다. 원본 XLSX·환경/인증 파일·로컬 아카이브는 Git에 넣지 않습니다. [Git 배포 규칙](https://vercel.com/docs/project-configuration/git-configuration)을 참고하세요.
+4. 수동 로컬 빌드에서 Windows의 preview·TypeScript 언어 서버가 네이티브 파일을 잠그면 `npm ci`가 EPERM으로 실패할 수 있습니다. 이 경우 에디터를 강제 종료하지 않고 별도 임시 폴더에서 빌드하세요. 자동 Git 배포의 클라우드 빌드는 로컬 프로세스의 파일 잠금과 분리됩니다.
 5. 공개 확인은 위의 안정적인 production 주소에서 로그인 없이 진행합니다. Vercel의 기본 보호 설정은 유지하므로 개별 deployment URL은 로그인을 요구할 수 있습니다. 소스 공개용 `--public` 옵션은 사용하지 않습니다. 이 앱에는 서버 데이터 저장이나 제품 파일 업로드용 환경 변수가 필요하지 않습니다.
 
 정적 앱만 배포하며 함수나 전체 경로 SPA rewrite는 사용하지 않습니다. 클라이언트 라우트가 없으므로 worker와 정적 파일은 실제 파일 경로로 제공해야 합니다. POS 파일·제품·실사 기록은 브라우저에서 처리·저장하며 서버로 업로드하지 않습니다.

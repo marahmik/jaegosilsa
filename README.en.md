@@ -58,16 +58,16 @@ Live site: **[https://jaegosilsa.vercel.app](https://jaegosilsa.vercel.app)**. T
 
 The user confirmed this is a noncommercial personal project, so `marahmiks-projects/jaegosilsa` uses Hobby. No paid upgrade or purchase was performed. Recheck [Hobby's noncommercial personal-use restriction](https://vercel.com/docs/plans/hobby) if usage later changes to commercial/business purposes.
 
-`app-ci` runs `npm ci`, `npm test` and `npm run build` with Node.js 24 on pushes to `main` and pull requests, without deploying. The Vercel project's Git connection is disconnected and `git.deploymentEnabled: false` remains in `vercel.json`. **A Git push does not update the site; an authorized manual redeployment is required.**
+`app-ci` installs, tests and builds with Node.js 24 on pushes to `main` and pull requests. The Vercel project is connected to GitHub `marahmik/jaegosilsa`; **a `main` push independently starts an automatic Vercel production deployment.**
 
-The full-reset feature is currently implemented and verified locally; it has not yet been redeployed to the public site above.
+The Git deployment rules in `vercel.json` are `main: true`, `**: false`. Other branches do not deploy automatically. GitHub CI success and Vercel READY are separate results; verify both.
 
-### Manual Redeployment
+### Automatic Deployment and Optional Manual Redeployment
 
 1. Authenticate through Vercel CLI and use the already linked `marahmiks-projects/jaegosilsa` project. Never commit `.vercel` or `.env*`, which contain local settings or authentication-related data.
 2. Project root: `.`; Framework Preset: **Vite**; Install Command: `npm ci`; Build Command: `npm run build`; Output Directory: `dist`; Node.js Version: **24.x**.
-3. Successfully install, test and build, then publish the [local production build](https://vercel.com/docs/cli/build) in `.vercel/output` as a [prebuilt production deployment](https://vercel.com/docs/cli/deploy#prebuilt). This release used CLI `63.1.2`, `vercel build --prod --yes --scope marahmiks-projects` and `vercel deploy --prebuilt --prod --yes --scope marahmiks-projects`. Do not include original XLSX files or internal repository documents in the deployment.
-4. On Windows, a preview or TypeScript language server can lock native files and make `npm ci` fail with EPERM. This release was installed/built from identical sources and project link settings in a separate temporary folder without forcibly stopping the editor.
+3. Push verified changes to `main` to let Vercel cloud-build the connected private repository. Only the static app in `dist` is published. For manual releases, create a [local production build](https://vercel.com/docs/cli/build), then use `vercel deploy --prebuilt --prod --yes --scope marahmiks-projects`. Never commit original XLSX, environment/authentication files or local archives. See [Git deployment rules](https://vercel.com/docs/project-configuration/git-configuration).
+4. During manual local builds on Windows, preview or TypeScript language-server processes can lock native files and make `npm ci` fail with EPERM. Build in a separate temporary folder rather than forcibly stopping the editor. Automatic Git cloud builds are separate from local process file locks.
 5. Verify anonymous access at the stable production address above. Default Vercel protection remains enabled, so individual deployment URLs may require login. Do not use the source-exposing `--public` option. The app needs no environment variables for server data storage or product-file uploads.
 
 Deploy static assets only, without functions or a blanket SPA rewrite. There are no client-side routes, so workers and static assets must be served at their actual file paths. POS files, products and stocktake records are processed/stored in the browser, not uploaded to a server.
