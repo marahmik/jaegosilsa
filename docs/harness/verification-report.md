@@ -119,3 +119,30 @@ localhost:5173을 별도 origin으로 사용해 개인정보 없는 작은 워�
 사용자가 main 일반 푸시와 Vercel 공개 사이트 준비를 승인했습니다. 물리 스캐너 시험 제외와 새 성공 비프음 사람 청취 미검증은 그대로 유지합니다. AC 체크리스트는49bd8d6, approved 명세·검증 기록은969719d에 선행 등록했습니다. 완료된 명세는version4를 유지한 채 done 및 completed를 기록하고 활성 scope는 은퇴했습니다. task_closed를 기존 감사 로그에 추가했으며 앱/하네스/배포 준비 변경과 함께 게이트를 통과시켜 커밋·푸시할 예정입니다.
 
 Vercel 구성은 vite/npm ci/npm run build/dist/Node24 기준이며 git.deploymentEnabled=false로 자동 Git 공개를 막았습니다. 앱 CI는 설치·기존 테스트·빌드만 수행하고 배포하지 않습니다. 실제 계정 연결·상업용 플랜·public deployment 보호 설정 및 공개 승인은 후속 준비 조건입니다. 준비 자체가 실제 배포나 이전 브라우저 기록의 이전을 뜻하지 않습니다.
+
+## 실제 Vercel 배포 — 2026-10-11 KST
+
+사용자가 실제 공개 배포를 승인하고, 이후 “업무용 아니야 Hobby로 배포하면 돼”라고 비업무용 개인 프로젝트임을 확인했습니다. CLI 장치 인증은 사용자가 직접 승인했으며 비밀번호·토큰을 채팅이나 저장소에 기록하지 않았습니다. 계정 `marahmik`, 팀 `marahmiks-projects`의 Hobby를 사용했고 요금제 변경·유료 구매는 수행하지 않았습니다.
+
+- 프로젝트는 `jaegosilsa`이며 Vite / npm ci / npm run build / dist / Node.js 24.x 설정을 확인했습니다. 연결 과정에서 생긴 Git 연결은 명시적으로 해제했고 CLI가 `Disconnected marahmik/jaegosilsa`를 반환했습니다. 자동 Git 배포 비활성화 설정도 유지했습니다.
+- 작업 폴더의 첫 `vercel build`는 실행 중인 preview가 사용하는 rolldown 네이티브 파일에서 EPERM으로 실패했습니다. 제가 만든 preview만 종료한 뒤에는 `tsc.exe --lsp --stdio`의 파일 잠금으로 실패했습니다. 에디터·언어 서버는 강제 종료하지 않았습니다.
+- 동일 소스·lockfile·프로젝트 연결 설정을 복사한 임시 폴더에서 CLI 63.1.2의 `vercel build --prod --yes --scope marahmiks-projects`가 설치·타입검사·Vite 빌드를 성공시켰고 `npm test` 12건이 통과했습니다. 원본 XLSX와 내부 문서는 이 빌드 폴더에 복사하지 않았습니다.
+- 작업 폴더 의존성은 같은 lockfile로 설치한 결과에서 누락 파일을 복구했습니다. 남아 있던 잠긴 실행 파일은 바이트가 동일해 덮어쓰지 않았습니다. 이후 작업 폴더에서도 `npm test` 12건과 `npm run build`가 통과했습니다. 기존 origin인 127.0.0.1:4173의 preview도 다시 실행했습니다.
+- `vercel deploy --prebuilt --prod --yes --scope marahmiks-projects`가 배포 `dpl_D9eJj4Zbb8pWhHp8gN1PWcorWC1C`를 `READY`, `target: production`으로 반환했습니다. 안정적인 주소는 **https://jaegosilsa.vercel.app** 입니다. 소스 공개용 `--public` 옵션은 사용하지 않았습니다.
+- 쿠키·인증 헤더 없이 요청한 HTML·CSS·main JS·XLSX worker가 모두 200이었고, 각 SHA-256이 배포한 정적 파일과 일치했습니다. JS와 worker는 application/javascript로 제공됐습니다. README.md·docs/harness/seed.yaml·검증 fixture 경로는 404였으며 기본 배포 보호 설정은 그대로 유지했습니다.
+- 관리형 Chromium에서 개인정보 없는 3종 XLSX를 실제 worker로 읽었습니다. 창고 값 99는 기준에 합산되지 않았습니다. Enter·Tab 입력은 각각 저장 후 실물 수량을 늘렸고 실제 네이티브 오디오 신호가 발생했습니다. 첫 신호 maxRMS는 약 0.0750이었습니다. 미등록 바코드는 화면 경고·오류 발화 요청을 표시하면서 실물 집계와 성공음 수를 바꾸지 않았습니다.
+- 음수 원본 + 초과 필터는 000222 한 행을 표시했습니다. 새로고침은 실물 합계 2, 부족 1, 초과 2, 최종 차이 +1과 저장 완료 상태를 복원했습니다. 실제 브라우저 다운로드 완료 이벤트 뒤 저장된 결과 XLSX를 별도로 파싱해 아래 값을 확인했습니다.
+
+|바코드|기준 재고|실물 수량|차이|
+|---|---:|---:|---:|
+|000111|2|1|-1|
+|000222|-1|0|1|
+|000333|0|1|1|
+
+선행 0은 문자열로 보존됐습니다. 브라우저 런타임 오류 목록은 비어 있었고 관측된 요청은 배포 origin의 정적 GET뿐이었습니다. favicon의 404는 앱 런타임 오류와 구분했습니다. 새 성공음을 사람이 스피커로 청취했거나 물리 스캐너를 시험했다고 주장하지 않습니다. 원본 사용자 XLSX는 이번 공개 검증에 사용하지 않았습니다.
+
+자동화 origin의 가상 실사 DB·오디오 측정용 초기화 스크립트를 제거하고 전용 브라우저 탭을 닫았습니다. 기존 사용자 브라우저와 원본 파일은 건드리지 않았습니다. localhost의 기록은 배포 origin으로 자동 이전되지 않으므로 주소 변경 전에 결과 XLSX를 내보내야 합니다.
+
+성공한 `.vercel/output`은 작업 폴더의 ignore 대상에 정적 파일 바이트를 그대로 복사해 보관했습니다. 전용 임시 빌드 폴더·가상 입력 XLSX·다운로드 결과는 모두 제거했습니다. 로컬 preview는 127.0.0.1:4173에서 유지하며 이번 배포 기록/ignore 갱신의 새 커밋·푸시는 수행하지 않았습니다.
+
+독립 `ActualVercelDeploymentVerify`의 최종 판정은 `PASS`, `blocking_issues: []`, 현재 배포 요구의 `residual_count: 0`입니다. 프로젝트·READY 상태·Hobby 유지·익명 HTTP/MIME/404·문서 및 ignore를 독립 확인했고, 브라우저 수량·오디오 관측과 빌드/테스트는 제공된 실행 근거를 검토했습니다.

@@ -29,3 +29,7 @@ artifacts/**
 # Application dependencies and production build
 node_modules/
 dist/
+
+# Vercel local project settings and build output
+.vercel
+.env*

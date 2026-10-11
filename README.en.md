@@ -52,21 +52,25 @@ npm run preview
 
 Production output is in `dist/`; preview runs at `http://127.0.0.1:4173`. Browser storage is origin-specific: development, preview, deployment, `localhost` and `127.0.0.1` do not automatically share records.
 
-## Vercel Deployment Preparation
+## Vercel Deployment
 
-Only deployment configuration and app CI are prepared; no live publication, account creation or plan change has been performed. `app-ci` runs `npm ci`, `npm test` and `npm run build` with Node.js 24 on pushes to `main` and pull requests. It does not deploy.
+Live site: **[https://jaegosilsa.vercel.app](https://jaegosilsa.vercel.app)**. The production deployment is READY. Unauthenticated HTTP requests and a real browser verified access, workbook import, scans, restoration and result downloads.
 
-### Setup After Explicit Publication Approval
+The user confirmed this is a noncommercial personal project, so `marahmiks-projects/jaegosilsa` uses Hobby. No paid upgrade or purchase was performed. Recheck [Hobby's noncommercial personal-use restriction](https://vercel.com/docs/plans/hobby) if usage later changes to commercial/business purposes.
 
-1. Store/business use requires a [Vercel plan](https://vercel.com/docs/plans/hobby) compatible with commercial use. Hobby is limited to noncommercial personal use. Check eligibility, but do not purchase or upgrade without separate approval.
-2. After publication is explicitly authorized, import the private GitHub repository `marahmik/jaegosilsa` into Vercel, granting only the required repository access. **Project import and the first Deploy can publish the site; do not treat import as harmless preparation.**
-3. Set the project root to `.`, Framework Preset to **Vite**, Install Command to `npm ci`, Build Command to `npm run build`, Output Directory to `dist` and Node.js Version to **24.x**. Set Production Branch to `main`. See the [official Vite guide](https://vercel.com/docs/frameworks/frontend/vite).
-4. `git.deploymentEnabled: false` in `vercel.json` disables automatic Git deployments for every branch. Change it to `true` and commit only after actual publication and subsequent automatic deployments are authorized, or retain `false` and perform an authorized manual deployment. This setting does not prevent import/manual deployment or unpublish an existing site. See [Git deployment configuration](https://vercel.com/docs/project-configuration/git-configuration).
-5. The public service must work without an app login. After publication approval, also check Vercel deployment protection so visitors are not required to sign in to Vercel. A private repository does not make the deployed site private. Never commit account details or tokens. The app needs no environment variables for server data storage or product-file uploads.
+`app-ci` runs `npm ci`, `npm test` and `npm run build` with Node.js 24 on pushes to `main` and pull requests, without deploying. The Vercel project's Git connection is disconnected and `git.deploymentEnabled: false` remains in `vercel.json`. **A Git push does not update the site; an authorized manual redeployment is required.**
+
+### Manual Redeployment
+
+1. Authenticate through Vercel CLI and use the already linked `marahmiks-projects/jaegosilsa` project. Never commit `.vercel` or `.env*`, which contain local settings or authentication-related data.
+2. Project root: `.`; Framework Preset: **Vite**; Install Command: `npm ci`; Build Command: `npm run build`; Output Directory: `dist`; Node.js Version: **24.x**.
+3. Successfully install, test and build, then publish the [local production build](https://vercel.com/docs/cli/build) in `.vercel/output` as a [prebuilt production deployment](https://vercel.com/docs/cli/deploy#prebuilt). This release used CLI `63.1.2`, `vercel build --prod --yes --scope marahmiks-projects` and `vercel deploy --prebuilt --prod --yes --scope marahmiks-projects`. Do not include original XLSX files or internal repository documents in the deployment.
+4. On Windows, a preview or TypeScript language server can lock native files and make `npm ci` fail with EPERM. This release was installed/built from identical sources and project link settings in a separate temporary folder without forcibly stopping the editor.
+5. Verify anonymous access at the stable production address above. Default Vercel protection remains enabled, so individual deployment URLs may require login. Do not use the source-exposing `--public` option. The app needs no environment variables for server data storage or product-file uploads.
 
 Deploy static assets only, without functions or a blanket SPA rewrite. There are no client-side routes, so workers and static assets must be served at their actual file paths. POS files, products and stocktake records are processed/stored in the browser, not uploaded to a server.
 
-### First Public Release Checklist
+### Before-Use Checklist
 
 - At the authorized deployment URL, confirm that the XLSX import worker actually loads and that POS import and result XLSX download work.
 - Listen for exactly one beep after a registered barcode is successfully saved. Unknown barcodes must leave counts unchanged and show a warning plus Korean “오류” speech or an explicit speech error status. Existing voice confirmation in the current environment is not proof of audible beeps in the deployed environment.

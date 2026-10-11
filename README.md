@@ -52,21 +52,25 @@ npm run preview
 
 프로덕션 결과는 `dist/`이며 preview 주소는 `http://127.0.0.1:4173`입니다. 브라우저 저장은 origin별로 분리되므로 개발·preview·배포 주소 또는 `localhost`와 `127.0.0.1` 사이에 기록이 자동 이동하지 않습니다.
 
-## Vercel 배포 준비
+## Vercel 배포
 
-배포 설정과 앱 CI만 준비한 상태이며, 실제 공개 배포·계정 생성·요금제 변경은 수행하지 않았습니다. `app-ci`는 `main` push와 pull request에서 Node.js 24로 `npm ci`, `npm test`, `npm run build`를 실행하며 배포하지 않습니다.
+실제 사이트는 **[https://jaegosilsa.vercel.app](https://jaegosilsa.vercel.app)** 입니다. 프로덕션 배포가 READY 상태이며, 로그인하지 않은 HTTP 요청과 실제 브라우저에서 접근·파일 가져오기·스캔·복원·결과 다운로드를 확인했습니다.
 
-### 공개 승인 후 설정
+사용자가 비업무용 개인 프로젝트임을 확인하여 `marahmiks-projects/jaegosilsa`를 Hobby 플랜으로 배포했습니다. 유료 전환이나 구매는 수행하지 않았습니다. 향후 상업·업무 용도로 바뀌면 [Hobby의 비상업적 개인 용도 제한](https://vercel.com/docs/plans/hobby)을 다시 확인해야 합니다.
 
-1. 매장 업무용 사용은 상업적 사용에 맞는 [Vercel 요금제](https://vercel.com/docs/plans/hobby)가 필요합니다. Hobby는 비상업적 개인 용도에 한정됩니다. 적합한 요금제를 확인하되 구매·업그레이드는 별도 승인 없이 진행하지 마세요.
-2. 공개가 명시적으로 승인된 뒤 Vercel에서 GitHub의 비공개 `marahmik/jaegosilsa` 저장소를 가져옵니다. 필요한 저장소 접근 권한만 부여하세요. **프로젝트 가져오기와 첫 Deploy도 사이트를 공개할 수 있으므로 준비만을 위한 무해한 작업으로 간주하지 마세요.**
-3. 프로젝트 루트는 `.`이며 Framework Preset은 **Vite**, Install Command는 `npm ci`, Build Command는 `npm run build`, Output Directory는 `dist`, Node.js Version은 **24.x**로 설정합니다. Production Branch는 `main`으로 설정합니다. [Vite 공식 안내](https://vercel.com/docs/frameworks/frontend/vite)를 참고하세요.
-4. `vercel.json`의 `git.deploymentEnabled: false`는 모든 브랜치의 자동 Git 배포를 끕니다. 실제 공개 및 이후 자동 배포가 승인된 경우에만 `true`로 바꾸고 커밋하거나, `false`를 유지한 채 승인된 수동 배포를 진행하세요. 이 설정은 가져오기·수동 배포·기존 공개 사이트를 막거나 비공개로 만들지 않습니다. [Git 배포 설정](https://vercel.com/docs/project-configuration/git-configuration)을 참고하세요.
-5. 공개 서비스는 앱 로그인 없이 사용할 수 있어야 합니다. 공개 승인 후 Vercel의 배포 보호 설정도 확인하여 방문자에게 Vercel 로그인을 요구하지 않는지 확인하세요. 저장소가 비공개인 것과 사이트 공개 여부는 별개입니다. 계정 정보·토큰을 저장소에 커밋하지 마세요. 이 앱에는 서버 데이터 저장이나 제품 파일 업로드용 환경 변수가 필요하지 않습니다.
+`app-ci`는 `main` push와 pull request에서 Node.js 24로 `npm ci`, `npm test`, `npm run build`를 실행하며 배포하지 않습니다. Vercel 프로젝트의 Git 연결은 해제했고 `vercel.json`의 `git.deploymentEnabled: false`도 유지합니다. **Git push만으로 사이트가 갱신되지 않으며 승인된 수동 재배포가 필요합니다.**
+
+### 수동 재배포
+
+1. Vercel CLI로 인증하고 이미 연결된 `marahmiks-projects/jaegosilsa` 프로젝트를 사용합니다. `.vercel`과 `.env*`는 로컬 설정·인증 관련 파일이므로 커밋하지 않습니다.
+2. 프로젝트 루트는 `.`이며 Framework Preset은 **Vite**, Install Command는 `npm ci`, Build Command는 `npm run build`, Output Directory는 `dist`, Node.js Version은 **24.x**입니다.
+3. 설치·테스트·빌드를 성공시킨 뒤 [로컬 production 빌드](https://vercel.com/docs/cli/build)의 `.vercel/output`을 [prebuilt production 배포](https://vercel.com/docs/cli/deploy#prebuilt)합니다. 이번 배포에는 CLI `63.1.2`의 `vercel build --prod --yes --scope marahmiks-projects` 및 `vercel deploy --prebuilt --prod --yes --scope marahmiks-projects`를 사용했습니다. 원본 XLSX·저장소 내부 문서는 배포물에 포함하지 않습니다.
+4. Windows에서 preview나 TypeScript 언어 서버가 네이티브 파일을 잠그면 `npm ci`가 EPERM으로 실패할 수 있습니다. 에디터 프로세스를 강제 종료하지 않고 동일 소스와 프로젝트 연결 설정을 복사한 별도 임시 폴더에서 설치·빌드하는 방식으로 이번 배포를 검증했습니다.
+5. 공개 확인은 위의 안정적인 production 주소에서 로그인 없이 진행합니다. Vercel의 기본 보호 설정은 유지하므로 개별 deployment URL은 로그인을 요구할 수 있습니다. 소스 공개용 `--public` 옵션은 사용하지 않습니다. 이 앱에는 서버 데이터 저장이나 제품 파일 업로드용 환경 변수가 필요하지 않습니다.
 
 정적 앱만 배포하며 함수나 전체 경로 SPA rewrite는 사용하지 않습니다. 클라이언트 라우트가 없으므로 worker와 정적 파일은 실제 파일 경로로 제공해야 합니다. POS 파일·제품·실사 기록은 브라우저에서 처리·저장하며 서버로 업로드하지 않습니다.
 
-### 첫 공개 전 체크리스트
+### 사용 전 체크리스트
 
 - 승인된 배포 주소에서 XLSX 가져오기 worker가 실제로 로드되고, POS 파일 가져오기와 결과 XLSX 다운로드가 작동하는지 확인하세요.
 - 등록 바코드의 저장 완료 뒤 비프음이 한 번 실제로 들리는지 확인하세요. 미등록 바코드는 수량을 바꾸지 않고 화면 경고와 한국어 “오류” 음성 또는 음성 오류 상태를 표시해야 합니다. 현재 환경의 기존 음성 확인을 새 배포 환경의 비프음 청취 확인으로 대체하지 마세요.
